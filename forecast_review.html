@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerby Weekly Forecast Review</title>
+<style>
+:root {
+  --bg:#0c0c16;--bg-card:#13131f;--bg-card2:#18182a;
+  --accent:#7c3aed;--accent-light:#a78bfa;--blue:#3b82f6;
+  --green:#10b981;--amber:#f59e0b;--red:#f43f5e;
+  --border:#1e1e32;--text:#e2e8f0;--muted:#64748b;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:14px;}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,'Inter','Segoe UI',sans-serif;min-height:100vh;}
+
+.header{background:var(--bg-card);border-bottom:1px solid var(--border);padding:14px 32px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50;}
+.header-brand{display:flex;align-items:center;gap:10px;}
+.logo{width:34px;height:34px;background:linear-gradient(135deg,#f59e0b,#f43f5e);border-radius:8px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:13px;color:#fff;flex-shrink:0;}
+.header-title{font-size:16px;font-weight:700;}
+.header-sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.header-right{display:flex;align-items:center;gap:8px;}
+.btn{border:none;border-radius:8px;padding:7px 14px;font-size:12px;font-weight:600;cursor:pointer;display:flex;align-items:center;gap:5px;transition:background .15s;}
+.btn-primary{background:var(--green);color:#fff;}
+.btn-primary:hover{background:#059669;}
+.btn-secondary{background:rgba(124,58,237,.2);color:var(--accent-light);border:1px solid rgba(124,58,237,.4);}
+.btn-secondary:hover{background:rgba(124,58,237,.3);}
+.btn:disabled{opacity:.5;cursor:default;}
+.nav-link{font-size:12px;color:var(--muted);text-decoration:none;border:1px solid var(--border);border-radius:8px;padding:6px 12px;transition:all .15s;white-space:nowrap;}
+.nav-link:hover{color:var(--text);border-color:var(--accent-light);}
+.data-badge{font-size:11px;background:rgba(16,185,129,.12);color:#6ee7b7;border:1px solid rgba(16,185,129,.25);border-radius:20px;padding:4px 10px;}
+.status-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;}
+.dot-live{background:var(--green);box-shadow:0 0 6px var(--green);}
+.dot-cached{background:var(--amber);}
+.dot-error{background:var(--red);}
+
+.slicer-bar{background:var(--bg-card);border-bottom:1px solid var(--border);padding:10px 32px;display:flex;align-items:center;gap:8px;position:sticky;top:63px;z-index:40;overflow-x:auto;}
+.slicer-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-right:4px;flex-shrink:0;}
+.slicer-btn{background:transparent;color:var(--muted);border:1px solid var(--border);border-radius:20px;padding:5px 14px;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;white-space:nowrap;flex-shrink:0;}
+.slicer-btn:hover{border-color:var(--accent-light);color:var(--text);}
+.slicer-btn.active{background:rgba(124,58,237,.2);color:var(--accent-light);border-color:rgba(124,58,237,.5);}
+
+main{padding:24px 32px;max-width:1600px;margin:0 auto;}
+.section-label{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:12px;margin-top:28px;}
+.card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.card-title{font-size:14px;font-weight:700;margin-bottom:2px;}
+.card-sub{font-size:11px;color:var(--muted);margin-bottom:16px;}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:4px;}
+.kpi{background:var(--bg-card);border:1px solid var(--border);border-radius:10px;padding:18px 20px;}
+.kpi-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);margin-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:6px;}
+.kpi-val{font-size:26px;font-weight:800;line-height:1;margin-bottom:4px;}
+.kpi-sub{font-size:11px;color:var(--muted);}
+.delta-chip{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:20px;font-size:10px;font-weight:700;flex-shrink:0;}
+.delta-up{background:rgba(16,185,129,.15);color:#10b981;}
+.delta-down{background:rgba(244,63,94,.15);color:#f43f5e;}
+.delta-flat{background:rgba(100,116,139,.15);color:#94a3b8;}
+.c-green{color:var(--green);}.c-amber{color:var(--amber);}.c-blue{color:var(--blue);}.c-purple{color:var(--accent-light);}.c-red{color:var(--red);}
+
+/* LINEARITY */
+.linearity-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+.month-card{background:var(--bg-card);border:1px solid var(--border);border-radius:12px;padding:20px;}
+.month-card.complete{border-color:rgba(16,185,129,.3);}
+.month-card.active{border-color:rgba(245,158,11,.4);background:rgba(245,158,11,.04);}
+.month-card.future{opacity:.8;}
+.month-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px;}
+.month-name{font-size:18px;font-weight:800;margin-bottom:4px;}
+.month-arr{font-size:28px;font-weight:800;margin:10px 0 4px;}
+.month-meta{font-size:11px;color:var(--muted);margin-bottom:12px;}
+.pacing-note{font-size:10px;color:var(--amber);font-weight:700;margin-top:6px;}
+
+/* TABLE */
+.tbl{width:100%;border-collapse:collapse;font-size:12px;}
+.tbl thead th{text-align:left;padding:8px 12px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;color:var(--muted);border-bottom:1px solid var(--border);white-space:nowrap;}
+.tbl thead th.r{text-align:right;}.tbl thead th.c{text-align:center;}
+.tbl tbody td{padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.03);vertical-align:middle;}
+.tbl tbody td.r{text-align:right;}.tbl tbody td.c{text-align:center;}
+.tbl tbody tr:last-child td{border-bottom:none;}
+.tbl tbody tr:hover td{background:rgba(255,255,255,.015);}
+.tbl-wrap{overflow-x:auto;}
+.tbl .total-row td{border-top:1px solid var(--border);background:rgba(255,255,255,.02);}
+
+/* PILLS */
+.pill{display:inline-block;padding:2px 7px;border-radius:99px;font-size:10px;font-weight:700;white-space:nowrap;}
+.pill-green{background:rgba(16,185,129,.15);color:#10b981;}
+.pill-amber{background:rgba(245,158,11,.15);color:#f59e0b;}
+.pill-red{background:rgba(244,63,94,.15);color:#f43f5e;}
+.pill-blue{background:rgba(59,130,246,.15);color:#60a5fa;}
+.pill-purple{background:rgba(124,58,237,.15);color:#a78bfa;}
+.pill-muted{background:rgba(100,116,139,.15);color:#94a3b8;}
+.rep-tag{display:inline-block;background:rgba(59,130,246,.12);color:#93c5fd;border-radius:4px;padding:2px 6px;font-size:10px;font-weight:600;}
+
+/* ATTAINMENT */
+.att-wrap{display:inline-flex;align-items:center;gap:6px;}
+.att-bar-bg{background:rgba(255,255,255,.06);border-radius:3px;height:4px;width:72px;overflow:hidden;}
+.att-bar-fg{height:4px;border-radius:3px;}
+
+/* PROGRESS */
+.progress-wrap{background:rgba(255,255,255,.06);border-radius:99px;height:6px;overflow:hidden;}
+.progress-bar{height:6px;border-radius:99px;}
+.pb-green{background:var(--green);}
+.pb-amber{background:var(--amber);}
+.pb-blue{background:var(--blue);}
+.pb-red{background:var(--red);}
+
+/* DEPS TEXTAREA */
+.deps-input{background:rgba(255,255,255,.04);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;padding:5px 8px;width:100%;resize:none;font-family:inherit;min-width:160px;}
+.deps-input:focus{outline:none;border-color:rgba(124,58,237,.5);}
+.deps-input::placeholder{color:var(--muted);}
+
+/* SNAPSHOT BANNER */
+.snap-banner{background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.25);border-radius:8px;padding:10px 16px;font-size:11px;color:#fbbf24;display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;}
+.snap-banner button{background:rgba(245,158,11,.2);border:1px solid rgba(245,158,11,.4);color:#fbbf24;border-radius:6px;padding:4px 10px;font-size:11px;font-weight:600;cursor:pointer;}
+
+.empty-state{text-align:center;padding:30px 20px;color:var(--muted);font-size:12px;line-height:1.7;}
+.info-box{background:rgba(124,58,237,.06);border:1px solid rgba(124,58,237,.18);border-radius:8px;padding:10px 14px;font-size:11px;color:var(--muted);line-height:1.7;margin-top:12px;}
+.footer{text-align:center;font-size:11px;color:var(--muted);padding:20px 0 32px;}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">FR</div>
+    <div>
+      <div class="header-title">Weekly Forecast Review</div>
+      <div class="header-sub" id="headerSub">Salesforce via Coefficient · Live data</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="sales_rep_dashboard.html" class="nav-link">AE View</a>
+    <a href="sales_dashboard.html" class="nav-link">← Full Dashboard</a>
+    <span class="data-badge" id="dataBadge"><span class="status-dot dot-cached"></span>Cached data</span>
+    <button class="btn btn-secondary" id="snapBtn" onclick="saveSnapshotNow()">📸 Save Snapshot</button>
+    <button class="btn btn-primary" id="refreshBtn" onclick="refreshFromSheets()">↻ Refresh</button>
+  </div>
+</header>
+
+<!-- QUARTER SLICER (built dynamically by buildQuarterSlicer()) -->
+<div class="slicer-bar" id="quarterSlicer"></div>
+
+<main>
+<div id="snapBannerWrap"></div>
+
+<!-- 1. FORECAST SUMMARY -->
+<div class="section-label">1 · Forecast Summary</div>
+<div class="kpi-row" id="forecastKPIs">
+  <div class="kpi"><div class="kpi-lbl">Commit</div><div class="kpi-val c-green">—</div><div class="kpi-sub">Refresh to load</div></div>
+  <div class="kpi"><div class="kpi-lbl">Best Case</div><div class="kpi-val c-blue">—</div><div class="kpi-sub">Refresh to load</div></div>
+  <div class="kpi"><div class="kpi-lbl">Most Likely</div><div class="kpi-val c-purple">—</div><div class="kpi-sub">Refresh to load</div></div>
+  <div class="kpi"><div class="kpi-lbl">Total Pipeline</div><div class="kpi-val c-amber">—</div><div class="kpi-sub">Refresh to load</div></div>
+</div>
+<div class="card" style="margin-top:12px;" id="forecastBreakdownCard">
+  <div id="forecastBreakdownContent"><div class="empty-state" style="padding:14px;">Refresh to load forecast breakdown</div></div>
+</div>
+
+<!-- 2. LINEARITY -->
+<div class="section-label">2 · Linearity — <span id="linearityQLabel" style="color:var(--amber);font-size:10px;">—</span></div>
+<div class="linearity-grid" id="linearityGrid">
+  <div class="month-card"><div class="empty-state" style="padding:16px;">Loading…</div></div>
+  <div class="month-card"><div class="empty-state" style="padding:16px;">Loading…</div></div>
+  <div class="month-card"><div class="empty-state" style="padding:16px;">Loading…</div></div>
+</div>
+
+<!-- 3. OUTLOOK BY AE -->
+<div class="section-label">3 · Outlook by AE — <span id="outlookQLabel" style="color:var(--amber);font-size:10px;">—</span></div>
+<div class="card" id="outlookCard">
+  <div id="outlookContent"><div class="empty-state">Refresh to load rep outlook</div></div>
+</div>
+
+<!-- 4. SLIPPED DEALS -->
+<div class="section-label">4 · Slipped Deal Review — Carried from prior quarter</div>
+<div class="card" id="slippedCard">
+  <div id="slippedContent"><div class="empty-state">Refresh to load slipped deals</div></div>
+</div>
+
+<!-- 5. TOP DEALS -->
+<div class="section-label">5 · Top Deals — MEDDICCC / MAP / MDP / Dependencies</div>
+<div class="card" style="margin-bottom:32px;">
+  <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+    <div>
+      <div class="card-title" id="topDealsTitle">Top Open Deals This Quarter</div>
+      <div class="card-sub" id="topDealsSub">Refresh to load · Dependencies are saved locally in your browser</div>
+    </div>
+  </div>
+  <div id="topDealsContent"><div class="empty-state">Refresh to load deal data</div></div>
+</div>
+
+</main>
+<div class="footer">Cerby Forecast Review · Salesforce data via Coefficient + Apps Script · <span id="footerSnap"></span></div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/a/macros/cerby.com/s/AKfycbyl5spppVZRroN6Fy6E-QygmKu90LhfuwJAxtcnQZnGaFOxOjIKIuCX_8girkFvvHzD/exec';
+const QUARTERS = (function() {
+  const mo = new Date().getMonth();
+  const fy = mo === 11 ? new Date().getFullYear() + 1 : new Date().getFullYear();
+  const qs = [];
+  for (let f = fy; f <= fy + 1; f++)
+    for (let q = 1; q <= 4; q++)
+      qs.push(`Q${q}'${String(f).slice(2)}`);
+  return qs;
+})();
+const SALES_REPS = ['Carlos','Travis','Hainsley','Arye','Nageye','Parham','Karsten'];
+const SNAP_KEY   = 'cerby_forecast_snap';
+const DEPS_KEY   = 'cerby_deal_deps';
+const MO         = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+// ── STATE ─────────────────────────────────────────────────────────────────
+let selectedQ = null;
+let D = {
+  oppMetrics:{ pipeByQ:[],wonByQ:[],openByStage:{},funnel:{},velocity:{},
+               repBreakdown:{},reps:[],byType:{},bySegment:{},byForecast:{},rawOpps:[] },
+  accounts:{ customers:[] },
+  quotas:{},
+};
+const repKeyMap = {};
+
+// ── FORMATTERS ────────────────────────────────────────────────────────────
+const fmt = {
+  usd: v => { const n=Number(v)||0; if(n>=1e6) return '$'+(n/1e6).toFixed(1)+'M'; if(n>=1e3) return '$'+Math.round(n/1e3)+'K'; return '$'+Math.round(n); },
+  pct: v => (Number(v)||0)+'%',
+  date: s => { if(!s) return '—'; const p=s.split('-'); if(p.length<3) return s; return (MO[parseInt(p[1],10)-1]||p[1])+' '+parseInt(p[2],10)+', '+p[0]; },
+};
+
+// ── QUARTER HELPERS ───────────────────────────────────────────────────────
+function todayQtrLabel() {
+  const d=new Date(), mo=d.getMonth();
+  let fq,fy;
+  if      (mo===11){fq=1;fy=d.getFullYear()+1;}
+  else if (mo<=1)  {fq=1;fy=d.getFullYear();}
+  else if (mo<=4)  {fq=2;fy=d.getFullYear();}
+  else if (mo<=7)  {fq=3;fy=d.getFullYear();}
+  else             {fq=4;fy=d.getFullYear();}
+  return "Q"+fq+"'"+String(fy).slice(2);
+}
+function qtrToNum(q) {
+  const m=q.match(/Q(\d)'(\d{2})/); if(!m) return 0;
+  return parseInt(m[2],10)*4+parseInt(m[1],10);
+}
+function prevQtrLabel(q) {
+  const m=q.match(/Q(\d)'(\d{2})/); if(!m) return null;
+  const qi=parseInt(m[1]),yr=parseInt(m[2]);
+  return qi===1 ? "Q4'"+(yr-1) : "Q"+(qi-1)+"'"+String(yr).padStart(2,'0');
+}
+function qtrToMonths(qLabel) {
+  const m=qLabel.match(/Q(\d)'(\d{2})/); if(!m) return [];
+  const fq=parseInt(m[1]),fy=2000+parseInt(m[2]);
+  // FY starts Dec: Q1=Dec(prev yr)+Jan+Feb, Q2=Mar-May, Q3=Jun-Aug, Q4=Sep-Nov
+  if(fq===1) return [`${fy-1}-12`,`${fy}-01`,`${fy}-02`];
+  const start=(fq-1)*3; // Q2→3, Q3→6, Q4→9
+  return [start,start+1,start+2].map(mo=>`${fy}-${String(mo).padStart(2,'0')}`);
+}
+function focusQ() { return selectedQ!==null ? QUARTERS[selectedQ] : todayQtrLabel(); }
+
+// ── REP HELPERS ───────────────────────────────────────────────────────────
+function repFirstMatch(a,b) {
+  if(!a||!b) return false;
+  const al=a.toLowerCase(),bl=b.toLowerCase();
+  return al===bl || al.split(' ')[0]===bl.split(' ')[0];
+}
+function resolveRepKey(short) {
+  if(!short) return null;
+  if(repKeyMap[short]) return repKeyMap[short];
+  const lower=short.toLowerCase();
+  const match=(D.oppMetrics.reps||[]).find(r=>r.toLowerCase().split(' ')[0]===lower);
+  if(match){repKeyMap[short]=match;return match;}
+  repKeyMap[short]=short; return short;
+}
+
+// ── PIPELINE QUALIFICATION ────────────────────────────────────────────────
+// A deal counts as pipeline only if it has reached Stage 2 Discovery.
+// Primary: s2Date (map Stage_2_Discovery_Start_Date__c in Apps Script)
+// Fallback: stage name starts with a number ≥ 2
+function isInPipeline(o) {
+  if(o.s2Date) return true;
+  const num=parseInt((o.stage||'').trim().charAt(0),10);
+  return !isNaN(num)&&num>=2;
+}
+function buildRepMap() {
+  SALES_REPS.forEach(s=>{
+    const lower=s.toLowerCase();
+    const full=(D.oppMetrics.reps||[]).find(r=>r.toLowerCase().split(' ')[0]===lower)||s;
+    repKeyMap[s]=full;
+  });
+}
+function getRepQuota(rep,q) {
+  const qd=D.quotas||{};
+  if(qd[rep]&&qd[rep][q]) return qd[rep][q];
+  const first=(rep||'').toLowerCase().split(' ')[0];
+  for(const r in qd){if(r.toLowerCase().split(' ')[0]===first&&qd[r][q])return qd[r][q];}
+  return 0;
+}
+function repWonForQtr(rep,q) {
+  const rd=(D.oppMetrics.repBreakdown||{})[rep]; if(!rd||!rd.wonByQ) return 0;
+  const row=rd.wonByQ.find(r=>r.q===q); return row?(row.arr||0):0;
+}
+
+// ── SNAPSHOT ─────────────────────────────────────────────────────────────
+function loadSnap() { try{const r=localStorage.getItem(SNAP_KEY);return r?JSON.parse(r):null;}catch(e){return null;} }
+function saveSnapshotNow() {
+  const q=focusQ();
+  const bf=(D.oppMetrics.byForecast||{})[q]||{};
+  const opps=D.oppMetrics.rawOpps||[];
+  const totalPipe=opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)).reduce((s,o)=>s+(o.arr||0),0);
+  const byRep={};
+  SALES_REPS.forEach(s=>{
+    const full=resolveRepKey(s)||s;
+    const pipe=opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)&&repFirstMatch(o.rep,full)).reduce((s,o)=>s+(o.arr||0),0);
+    byRep[full]={pipe,won:repWonForQtr(full,q)};
+  });
+  const snap={savedAt:new Date().toISOString(),quarter:q,forecastCats:JSON.parse(JSON.stringify(bf)),totalPipe,byRep};
+  try{localStorage.setItem(SNAP_KEY,JSON.stringify(snap));}catch(e){}
+  renderSnapBanner(snap);
+  const btn=document.getElementById('snapBtn');
+  btn.textContent='✓ Saved'; setTimeout(()=>{btn.textContent='📸 Save Snapshot';},2000);
+}
+function renderSnapBanner(snap) {
+  const el=document.getElementById('snapBannerWrap');
+  if(!snap){el.innerHTML='';return;}
+  const d=new Date(snap.savedAt);
+  const age=Math.round((Date.now()-d.getTime())/3600000);
+  const ageStr=age<1?'<1h ago':age<24?age+'h ago':Math.round(age/24)+'d ago';
+  const ts=d.toLocaleDateString('en-US',{month:'short',day:'numeric'})+' '+d.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  el.innerHTML=`<div class="snap-banner"><span>📸 Snapshot: ${ts} (${ageStr}) · ${snap.quarter} — <strong>deltas shown vs this baseline</strong></span><button onclick="clearSnap()">Clear</button></div>`;
+  document.getElementById('footerSnap').textContent='Snapshot: '+ts;
+}
+function clearSnap() {
+  try{localStorage.removeItem(SNAP_KEY);}catch(e){}
+  document.getElementById('snapBannerWrap').innerHTML='';
+  document.getElementById('footerSnap').textContent='';
+  rebuildAll();
+}
+
+// ── DEAL DEPENDENCIES (localStorage) ─────────────────────────────────────
+function saveDeps(id,val) {
+  try{const d=JSON.parse(localStorage.getItem(DEPS_KEY)||'{}');if(val.trim())d[id]=val.trim();else delete d[id];localStorage.setItem(DEPS_KEY,JSON.stringify(d));}catch(e){}
+}
+function loadDeps() { try{return JSON.parse(localStorage.getItem(DEPS_KEY)||'{}');}catch(e){return {};} }
+
+// ── SLICER ────────────────────────────────────────────────────────────────
+function setQuarter(idx) {
+  selectedQ=idx;
+  document.querySelectorAll('#quarterSlicer .slicer-btn').forEach((b,i)=>b.classList.toggle('active',i===idx));
+  rebuildAll();
+}
+function buildQuarterSlicer() {
+  const bar=document.getElementById('quarterSlicer');
+  bar.innerHTML='<span class="slicer-label">Quarter</span>'+
+    QUARTERS.map((q,i)=>`<button class="slicer-btn${selectedQ===i?' active':''}" onclick="setQuarter(${i})">${q}</button>`).join('');
+}
+function autoSelectQ() {
+  buildQuarterSlicer();
+  const idx=QUARTERS.indexOf(todayQtrLabel());
+  setQuarter(idx>=0?idx:1);
+}
+
+// ── CATEGORY HELPERS ──────────────────────────────────────────────────────
+function catColor(cat) {
+  const c=(cat||'').toLowerCase();
+  if(c.includes('commit'))  return '#10b981';
+  if(c.includes('best'))    return '#3b82f6';
+  if(c.includes('most'))    return '#a78bfa';
+  if(c.includes('pipeline'))return '#64748b';
+  return '#94a3b8';
+}
+function catVal(bf,prefix) {
+  for(const k of Object.keys(bf)){if(k.toLowerCase().startsWith(prefix))return bf[k].arr||0;} return 0;
+}
+function catCount(bf,prefix) {
+  for(const k of Object.keys(bf)){if(k.toLowerCase().startsWith(prefix))return bf[k].count||0;} return 0;
+}
+function sortedCats(bf) {
+  const ord=['commit','best','most','forecast','pipeline','omit'];
+  return Object.keys(bf).sort((a,b)=>{
+    const ai=ord.findIndex(c=>a.toLowerCase().includes(c));
+    const bi=ord.findIndex(c=>b.toLowerCase().includes(c));
+    return (ai<0?99:ai)-(bi<0?99:bi);
+  });
+}
+
+// ── 1. FORECAST SUMMARY ───────────────────────────────────────────────────
+function buildForecastSummary() {
+  const q=focusQ();
+  const bf=(D.oppMetrics.byForecast||{})[q]||{};
+  const snap=loadSnap();
+  const prevBf=(snap&&snap.quarter===q)?snap.forecastCats:{};
+
+  const commit   = catVal(bf,'commit');
+  const bestCase = catVal(bf,'best');
+  const mostLkly = catVal(bf,'most')||catVal(bf,'forecast');
+  const totalPipe= (D.oppMetrics.rawOpps||[]).filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)).reduce((s,o)=>s+(o.arr||0),0);
+
+  function deltaChip(cur,prev) {
+    if(!prev) return '';
+    const d=cur-prev;
+    if(Math.abs(d)<1000) return '<span class="delta-chip delta-flat">→ flat</span>';
+    return `<span class="delta-chip ${d>0?'delta-up':'delta-down'}">${d>0?'▲':'▼'} ${fmt.usd(Math.abs(d))}</span>`;
+  }
+
+  const pTotalPipe=snap&&snap.quarter===q?(snap.totalPipe||0):0;
+  const kpis=[
+    {lbl:'Commit',         val:commit,    sub:catCount(bf,'commit')+' deals',              c:'c-green',  delta:deltaChip(commit,catVal(prevBf,'commit'))},
+    {lbl:'Best Case',      val:bestCase,  sub:catCount(bf,'best')+' deals',                c:'c-blue',   delta:deltaChip(bestCase,catVal(prevBf,'best'))},
+    {lbl:'Most Likely',    val:mostLkly,  sub:(catCount(bf,'most')||catCount(bf,'forecast'))+' deals', c:'c-purple', delta:deltaChip(mostLkly,catVal(prevBf,'most')||catVal(prevBf,'forecast'))},
+    {lbl:'Total Pipeline', val:totalPipe, sub:'Closing '+q,                                c:'c-amber',  delta:deltaChip(totalPipe,pTotalPipe)},
+  ];
+
+  document.getElementById('forecastKPIs').innerHTML=kpis.map(k=>
+    `<div class="kpi"><div class="kpi-lbl">${k.lbl} ${k.delta}</div><div class="kpi-val ${k.c}">${k.val?fmt.usd(k.val):'—'}</div><div class="kpi-sub">${k.sub}</div></div>`
+  ).join('');
+
+  // Per-rep breakdown by forecast category
+  const reps=SALES_REPS.map(s=>resolveRepKey(s)).filter(Boolean);
+  const cats=sortedCats(bf);
+  const opps=D.oppMetrics.rawOpps||[];
+
+  if(!cats.length) {
+    document.getElementById('forecastBreakdownContent').innerHTML=
+      `<div style="font-size:11px;color:var(--muted);">No forecast category data · Add <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">ForecastCategoryName</code> to your Opportunity SOQL in Coefficient.</div>`;
+    return;
+  }
+
+  const repRows=reps.map(rep=>{
+    const ro=opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)&&repFirstMatch(o.rep,rep));
+    const bycat={};
+    cats.forEach(c=>{bycat[c]={count:0,arr:0};});
+    ro.forEach(o=>{const c=o.forecastCat||'Pipeline';if(!bycat[c])bycat[c]={count:0,arr:0};bycat[c].count++;bycat[c].arr+=(o.arr||0);});
+    const total=ro.reduce((s,o)=>s+(o.arr||0),0);
+    return {rep,bycat,total};
+  });
+
+  document.getElementById('forecastBreakdownContent').innerHTML=
+    `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr><th>Rep</th>${cats.map(c=>`<th class="r" style="color:${catColor(c)};">${c}</th>`).join('')}<th class="r">Total</th></tr></thead>
+      <tbody>
+      ${repRows.map(r=>`<tr>
+        <td style="font-weight:600;">${r.rep}</td>
+        ${cats.map(c=>{const v=r.bycat[c]||{count:0,arr:0};return `<td class="r" style="color:${catColor(c)};font-weight:${v.arr?700:400};">${v.arr?fmt.usd(v.arr):'—'}${v.count?`<div style="font-size:9px;font-weight:400;color:var(--muted);">${v.count}d</div>`:''}</td>`;}).join('')}
+        <td class="r" style="font-weight:700;">${r.total?fmt.usd(r.total):'—'}</td>
+      </tr>`).join('')}
+      <tr class="total-row">
+        <td style="font-weight:700;color:var(--muted);">Team</td>
+        ${cats.map(c=>`<td class="r" style="color:${catColor(c)};font-weight:700;">${bf[c]?fmt.usd(bf[c].arr):'—'}${bf[c]?`<div style="font-size:9px;font-weight:400;color:var(--muted);">${bf[c].count}d</div>`:''}</td>`).join('')}
+        <td class="r" style="font-weight:700;">${fmt.usd(totalPipe)}</td>
+      </tr>
+      </tbody>
+    </table></div>`;
+}
+
+// ── 2. LINEARITY ──────────────────────────────────────────────────────────
+function buildLinearity() {
+  const q=focusQ();
+  const months=qtrToMonths(q);
+  if(!months.length){document.getElementById('linearityGrid').innerHTML='<div class="month-card"><div class="empty-state">Cannot parse quarter</div></div>';return;}
+  document.getElementById('linearityQLabel').textContent=q;
+
+  const today=new Date();
+  const todayKey=today.getFullYear()+'-'+String(today.getMonth()+1).padStart(2,'0');
+  const opps=D.oppMetrics.rawOpps||[];
+  const teamQ=SALES_REPS.map(s=>getRepQuota(resolveRepKey(s)||s,q)).reduce((a,b)=>a+b,0);
+  const mQ=teamQ>0?Math.round(teamQ/3):0;
+
+  const cards=months.map((mk,i)=>{
+    const moNum=parseInt(mk.slice(5,7),10)-1;
+    const yr=parseInt(mk.slice(0,4),10);
+    const daysInMo=new Date(yr,moNum+1,0).getDate();
+    const wonOpps=opps.filter(o=>o.isWon&&o.closeDate&&o.closeDate.startsWith(mk));
+    const openOpps=opps.filter(o=>o.isOpen&&o.closeDate&&o.closeDate.startsWith(mk)&&isInPipeline(o));
+    const wonARR=wonOpps.reduce((s,o)=>s+(o.arr||0),0);
+    const openARR=openOpps.reduce((s,o)=>s+(o.arr||0),0);
+
+    let status='future',dayEl=0,pacedARR=null;
+    if(mk<todayKey) status='complete';
+    else if(mk===todayKey){status='active';dayEl=today.getDate();pacedARR=dayEl>0?Math.round((wonARR/dayEl)*daysInMo):0;}
+
+    const attPct=mQ>0?Math.round(wonARR/mQ*100):null;
+    const pacedPct=mQ>0&&pacedARR!==null?Math.round(pacedARR/mQ*100):null;
+    const barPct=Math.min(status==='active'&&pacedPct!==null?pacedPct:attPct||0,100);
+    const barCls=barPct>=100?'pb-green':barPct>=60?'pb-amber':'pb-red';
+
+    const badgeCls=status==='complete'?'pill-green':status==='active'?'pill-amber':'pill-muted';
+    const badgeLbl=status==='complete'?'Complete':status==='active'?'In Progress':'Upcoming';
+
+    let body;
+    if(status==='future'){
+      const proj=openARR;const projPct=mQ>0?Math.round(proj/mQ*100):null;
+      body=`<div class="month-arr" style="color:var(--muted);">${proj?fmt.usd(proj):'$0'}</div>
+        <div class="month-meta">${openOpps.length} deal${openOpps.length!==1?'s':''} in pipeline${projPct!==null?' · '+projPct+'% of target':''}</div>
+        ${mQ?`<div class="progress-wrap"><div class="progress-bar pb-blue" style="width:${Math.min(projPct||0,100)}%;"></div></div>`:''}
+        <div style="margin-top:8px;font-size:10px;color:var(--muted);">Open pipeline — not yet won</div>`;
+    } else {
+      body=`<div class="month-arr ${wonARR>0?'c-green':''}">${wonARR?fmt.usd(wonARR):'$0'}</div>
+        <div class="month-meta">${wonOpps.length} deal${wonOpps.length!==1?'s':''} closed${attPct!==null?' · '+attPct+'% of monthly target':''}</div>
+        ${mQ?`<div class="progress-wrap"><div class="progress-bar ${barCls}" style="width:${barPct}%;"></div></div>`:''}
+        ${status==='active'&&pacedARR!==null?`<div class="pacing-note">⚡ ${fmt.usd(pacedARR)} paced (${dayEl}/${daysInMo} days · ${pacedPct}% target)</div>`:''}
+        ${status==='active'&&openARR>0?`<div style="margin-top:8px;font-size:11px;color:var(--muted);">${fmt.usd(openARR)} open pipeline in month (${openOpps.length} deals)</div>`:''}`;
+    }
+
+    return `<div class="month-card ${status}">
+      <div class="month-badge"><span class="pill ${badgeCls}">${badgeLbl}</span> M${i+1}</div>
+      <div class="month-name">${MO[moNum]} ${yr}</div>
+      ${body}
+    </div>`;
+  });
+  document.getElementById('linearityGrid').innerHTML=cards.join('');
+}
+
+// ── 3. OUTLOOK BY AE ─────────────────────────────────────────────────────
+function buildOutlookByAE() {
+  const q=focusQ();
+  document.getElementById('outlookQLabel').textContent=q;
+  const opps=D.oppMetrics.rawOpps||[];
+  const snap=loadSnap();
+  const hasQ=Object.keys(D.quotas||{}).length>0;
+
+  const reps=SALES_REPS.map(s=>resolveRepKey(s)||s);
+
+  function repCatARR(rep,prefix){
+    return opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)&&repFirstMatch(o.rep,rep)&&(o.forecastCat||'').toLowerCase().startsWith(prefix)).reduce((s,o)=>s+(o.arr||0),0);
+  }
+
+  const rows=reps.map(rep=>{
+    const quota   =getRepQuota(rep,q);
+    const wonARR  =repWonForQtr(rep,q);
+    const attain  =quota>0?Math.round(wonARR/quota*100):null;
+    const commit  =repCatARR(rep,'commit');
+    const best    =repCatARR(rep,'best');
+    const pipe    =opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)&&repFirstMatch(o.rep,rep)).reduce((s,o)=>s+(o.arr||0),0);
+    const cvg     =quota>0?pipe/quota:null;
+    const gap     =quota>0?Math.max(0,quota-wonARR):null;
+    const prevPipe=snap&&snap.quarter===q&&snap.byRep&&snap.byRep[rep]?(snap.byRep[rep].pipe||0):null;
+    const pipeDelta=prevPipe!==null?pipe-prevPipe:null;
+    return{rep,quota,wonARR,attain,commit,best,pipe,cvg,gap,pipeDelta};
+  });
+
+  const tot={quota:0,won:0,commit:0,best:0,pipe:0};
+  rows.forEach(r=>{tot.quota+=r.quota||0;tot.won+=r.wonARR||0;tot.commit+=r.commit||0;tot.best+=r.best||0;tot.pipe+=r.pipe||0;});
+  tot.attain=tot.quota>0?Math.round(tot.won/tot.quota*100):null;
+  tot.cvg=tot.quota>0?tot.pipe/tot.quota:null;
+  tot.gap=tot.quota>0?Math.max(0,tot.quota-tot.won):null;
+
+  const attBar=pct=>{
+    if(pct===null) return '—';
+    const cls=pct>=100?'pb-green':pct>=60?'pb-amber':'pb-red';
+    const lbl=pct>=100?`<span class="c-green" style="font-weight:700;">${pct}% ✓</span>`:pct>=60?`<span class="c-amber" style="font-weight:700;">${pct}%</span>`:`<span class="c-red" style="font-weight:700;">${pct}%</span>`;
+    return `<div class="att-wrap">${lbl}<div class="att-bar-bg"><div class="att-bar-fg ${cls}" style="width:${Math.min(pct,100)}%;"></div></div></div>`;
+  };
+  const cvgBadge=(c,quot)=>{
+    if(c===null||!quot) return '—';
+    const cls=c>=2?'c-green':c>=1?'c-amber':'c-red';
+    return `<span class="${cls}" style="font-weight:700;">${c.toFixed(1)}x ${c>=2?'✓':c>=1?'⚠':'✗'}</span>`;
+  };
+  const dChip=d=>{if(d===null||Math.abs(d)<1000)return '';return ` <span class="delta-chip ${d>0?'delta-up':'delta-down'}" style="font-size:9px;">${d>0?'▲':'▼'}${fmt.usd(Math.abs(d))}</span>`;};
+  const gapCell=g=>g===null?'—':g>0?`<span class="c-red" style="font-weight:700;">-${fmt.usd(g)}</span>`:`<span class="c-green" style="font-weight:700;">✓</span>`;
+
+  const noQNote=hasQ?'':
+    `<div style="font-size:11px;color:var(--amber);background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:6px;padding:8px 12px;margin-bottom:12px;">
+      Add a <strong>Quota</strong> tab to your Coefficient sheet to populate quota, attainment, coverage and gap columns.
+    </div>`;
+
+  document.getElementById('outlookContent').innerHTML=noQNote+
+    `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>Rep</th>
+        <th class="r">${q} Quota</th>
+        <th class="r">Won ARR</th>
+        <th style="min-width:140px;">Attainment</th>
+        <th class="r" style="color:#10b981;">Commit</th>
+        <th class="r" style="color:#3b82f6;">Best Case</th>
+        <th class="r">Open Pipeline</th>
+        <th>Coverage</th>
+        <th class="r">Quota Gap</th>
+      </tr></thead>
+      <tbody>
+      ${rows.map(r=>`<tr>
+        <td style="font-weight:600;">${r.rep}</td>
+        <td class="r" style="color:var(--muted);">${r.quota?fmt.usd(r.quota):'—'}</td>
+        <td class="r" style="font-weight:700;color:var(--green);">${r.wonARR?fmt.usd(r.wonARR):'—'}</td>
+        <td>${attBar(r.attain)}</td>
+        <td class="r" style="color:#10b981;font-weight:700;">${r.commit?fmt.usd(r.commit):'—'}</td>
+        <td class="r" style="color:#3b82f6;font-weight:700;">${r.best?fmt.usd(r.best):'—'}</td>
+        <td class="r" style="font-weight:600;">${r.pipe?fmt.usd(r.pipe):'—'}${dChip(r.pipeDelta)}</td>
+        <td>${cvgBadge(r.cvg,r.quota)}</td>
+        <td class="r">${gapCell(r.gap)}</td>
+      </tr>`).join('')}
+      <tr class="total-row">
+        <td style="font-weight:700;">Team</td>
+        <td class="r" style="color:var(--muted);">${tot.quota?fmt.usd(tot.quota):'—'}</td>
+        <td class="r" style="font-weight:700;color:var(--green);">${tot.won?fmt.usd(tot.won):'—'}</td>
+        <td>${attBar(tot.attain)}</td>
+        <td class="r" style="color:#10b981;font-weight:700;">${tot.commit?fmt.usd(tot.commit):'—'}</td>
+        <td class="r" style="color:#3b82f6;font-weight:700;">${tot.best?fmt.usd(tot.best):'—'}</td>
+        <td class="r" style="font-weight:700;">${tot.pipe?fmt.usd(tot.pipe):'—'}</td>
+        <td>${cvgBadge(tot.cvg,tot.quota)}</td>
+        <td class="r">${gapCell(tot.gap)}</td>
+      </tr>
+      </tbody>
+    </table></div>`;
+}
+
+// ── 4. SLIPPED DEALS ─────────────────────────────────────────────────────
+function buildSlippedDeals() {
+  const q=focusQ();
+  const qNum=qtrToNum(q);
+  const opps=D.oppMetrics.rawOpps||[];
+  if(!opps.length){document.getElementById('slippedContent').innerHTML='<div class="empty-state">Refresh to load data</div>';return;}
+
+  const slipped=opps
+    .filter(o=>o.isOpen&&o.closeQtr&&qtrToNum(o.closeQtr)<qNum&&isInPipeline(o))
+    .sort((a,b)=>(b.arr||0)-(a.arr||0));
+
+  if(!slipped.length){
+    document.getElementById('slippedContent').innerHTML=
+      `<div class="empty-state"><div style="font-size:24px;margin-bottom:8px;">✅</div>No slipped deals — all open pipeline has close dates in ${q} or later.</div>`;
+    return;
+  }
+
+  const totalARR=slipped.reduce((s,o)=>s+(o.arr||0),0);
+  const deps=loadDeps();
+
+  document.getElementById('slippedContent').innerHTML=
+    `<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;">
+      <span style="font-size:13px;font-weight:700;">${slipped.length} deal${slipped.length!==1?'s':''} carried over</span>
+      <span class="pill pill-red">${fmt.usd(totalARR)} ARR</span>
+      <span style="font-size:11px;color:var(--muted);">Expected close before ${q} · still open</span>
+    </div>
+    <div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>Opportunity</th><th>Account</th><th class="r">ARR</th>
+        <th>Rep</th><th>Was</th><th>Updated Close</th><th>Stage</th>
+        <th style="min-width:200px;">Next Steps</th>
+      </tr></thead>
+      <tbody>
+      ${slipped.slice(0,20).map(o=>{
+        const saved=deps[o.id]||'';
+        return `<tr>
+          <td style="font-weight:600;max-width:180px;" title="${(o.name||'').replace(/"/g,'&quot;')}">${(o.name||o.id||'').slice(0,34)}${(o.name||'').length>34?'…':''}</td>
+          <td style="max-width:130px;font-size:11px;">${(o.account||'—').slice(0,26)}</td>
+          <td class="r" style="font-weight:700;color:var(--red);">${o.arr?fmt.usd(o.arr):'—'}</td>
+          <td><span class="rep-tag">${o.rep||'—'}</span></td>
+          <td><span class="pill pill-red" style="font-size:9px;">${o.closeQtr||'—'}</span></td>
+          <td style="font-size:11px;color:var(--amber);">${o.closeDate?fmt.date(o.closeDate):'—'}</td>
+          <td style="font-size:11px;color:var(--muted);" title="${o.stage||''}">${(o.stage||'—').slice(0,24)}</td>
+          <td><textarea class="deps-input" rows="1" placeholder="Updated date, blocker, next step…" oninput="saveDeps('${o.id}',this.value)">${saved}</textarea></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>
+    ${slipped.length>20?`<div style="text-align:center;padding:8px;font-size:11px;color:var(--muted);">Showing 20 of ${slipped.length}</div>`:''}`;
+}
+
+// ── 5. TOP DEALS ─────────────────────────────────────────────────────────
+function buildTopDeals() {
+  const q=focusQ();
+  const opps=D.oppMetrics.rawOpps||[];
+  if(!opps.length){document.getElementById('topDealsContent').innerHTML='<div class="empty-state">Refresh to load data</div>';return;}
+
+  const top=opps.filter(o=>o.isOpen&&o.closeQtr===q&&isInPipeline(o)).sort((a,b)=>(b.arr||0)-(a.arr||0)).slice(0,15);
+  document.getElementById('topDealsTitle').textContent=`Top Open Deals — ${q}`;
+  document.getElementById('topDealsSub').textContent=`${top.length} deals · sorted by ARR · Dependencies &amp; asks saved locally`;
+
+  if(!top.length){
+    document.getElementById('topDealsContent').innerHTML=`<div class="empty-state">No open deals closing in ${q}</div>`;
+    return;
+  }
+
+  const deps=loadDeps();
+  const typePill=t=>{
+    if(!t) return '<span style="color:var(--muted);">—</span>';
+    const tl=t.toLowerCase();
+    const cls=tl.includes('new')?'pill-purple':tl.includes('expan')?'pill-green':tl.includes('renew')?'pill-amber':'pill-muted';
+    return `<span class="pill ${cls}">${t}</span>`;
+  };
+
+  document.getElementById('topDealsContent').innerHTML=
+    `<div class="tbl-wrap"><table class="tbl">
+      <thead><tr>
+        <th>#</th><th>Opportunity</th><th>Account</th>
+        <th class="r">ARR</th><th>Rep</th><th>Stage</th>
+        <th>Forecast</th><th>Type</th><th>Close</th>
+        <th class="c" title="Metrics · Economic Buyer · Decision Criteria · Decision Process · Identify Pain · Champion · Competition · Customer Confirmed">MEDDICCC</th>
+        <th class="c" title="Mutual Action Plan status">MAP</th>
+        <th class="c" title="Mutual Development Plan / Multi-Dimensional Proposal">MDP</th>
+        <th style="min-width:200px;">Dependencies &amp; Asks</th>
+      </tr></thead>
+      <tbody>
+      ${top.map((o,i)=>{
+        const saved=deps[o.id]||'';
+        const fc=o.forecastCat||'';
+        return `<tr>
+          <td style="color:var(--muted);font-weight:700;">${i+1}</td>
+          <td style="font-weight:600;max-width:170px;" title="${(o.name||'').replace(/"/g,'&quot;')}">${(o.name||o.id||'').slice(0,32)}${(o.name||'').length>32?'…':''}</td>
+          <td style="max-width:120px;font-size:11px;">${(o.account||'—').slice(0,24)}</td>
+          <td class="r" style="font-weight:800;">${o.arr?fmt.usd(o.arr):'—'}</td>
+          <td><span class="rep-tag">${o.rep||'—'}</span></td>
+          <td style="font-size:11px;color:var(--muted);max-width:130px;" title="${o.stage||''}">${(o.stage||'—').slice(0,22)}</td>
+          <td style="font-weight:700;color:${catColor(fc)};white-space:nowrap;">${fc||'—'}</td>
+          <td>${typePill(o.type)}</td>
+          <td style="font-size:11px;color:var(--muted);white-space:nowrap;">${o.closeDate?fmt.date(o.closeDate):'—'}</td>
+          <td class="c"><span style="font-size:10px;color:var(--muted);" title="Add MEDDPICC_Score__c to Opportunity SOQL">—</span></td>
+          <td class="c"><span style="font-size:10px;color:var(--muted);" title="Add MAP_Status__c to Opportunity SOQL">—</span></td>
+          <td class="c"><span style="font-size:10px;color:var(--muted);" title="Add MDP_Status__c to Opportunity SOQL">—</span></td>
+          <td><textarea class="deps-input" rows="2" placeholder="Product · Legal · Finance · Exec asks…" oninput="saveDeps('${o.id}',this.value)">${saved}</textarea></td>
+        </tr>`;
+      }).join('')}
+      </tbody>
+    </table></div>
+    <div class="info-box">
+      <strong style="color:var(--accent-light);">Enable MEDDICCC / MAP / MDP columns:</strong>
+      Add to your Opportunity SOQL in Coefficient:
+      <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">MEDDPICC_Score__c</code>,
+      <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">MAP_Status__c</code>,
+      <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">MDP_Status__c</code>,
+      <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">Key_Deal__c</code>
+      — then add them to the <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">rawOpps</code> push in the Apps Script.<br>
+      Until then, <strong>Dependencies &amp; Asks</strong> are saved in your browser and persist across refreshes.
+    </div>`;
+}
+
+// ── REBUILD ALL ───────────────────────────────────────────────────────────
+function rebuildAll() {
+  renderSnapBanner(loadSnap());
+  buildForecastSummary();
+  buildLinearity();
+  buildOutlookByAE();
+  buildSlippedDeals();
+  buildTopDeals();
+}
+
+// ── DATA REFRESH ──────────────────────────────────────────────────────────
+function refreshFromSheets() {
+  const btn=document.getElementById('refreshBtn');
+  const badge=document.getElementById('dataBadge');
+  btn.disabled=true; btn.textContent='↻ Loading…';
+  badge.innerHTML='<span class="status-dot dot-cached"></span>Fetching…';
+
+  const cb='__frCb_'+Date.now();
+  const tag=document.createElement('script');
+  const to=setTimeout(()=>{
+    delete window[cb]; if(tag.parentNode)tag.remove();
+    btn.disabled=false; btn.textContent='↻ Refresh';
+    badge.innerHTML='<span class="status-dot dot-error"></span>Timeout';
+  },30000);
+
+  window[cb]=function(data){
+    clearTimeout(to); delete window[cb]; tag.remove();
+    if(data.oppMetrics&&!data.oppMetrics._error){
+      if(!Array.isArray(data.oppMetrics.rawOpps))data.oppMetrics.rawOpps=[];
+      D.oppMetrics=data.oppMetrics;
+    }
+    if(data.accounts&&!data.accounts._error) D.accounts=data.accounts;
+    if(data.quotas&&!data.quotas._error) D.quotas=data.quotas;
+    buildRepMap();
+    rebuildAll();
+    const t=new Date().toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    badge.innerHTML=`<span class="status-dot dot-live"></span>Live · ${t}`;
+    btn.disabled=false; btn.textContent='↻ Refresh';
+    document.getElementById('headerSub').textContent='Salesforce via Coefficient · Updated '+t;
+  };
+  tag.src=SCRIPT_URL+'?callback='+cb;
+  document.head.appendChild(tag);
+}
+
+// ── INIT ──────────────────────────────────────────────────────────────────
+autoSelectQ();
+renderSnapBanner(loadSnap());
+</script>
+</body>
+</html>
