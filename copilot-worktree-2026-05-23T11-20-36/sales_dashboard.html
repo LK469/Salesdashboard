@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerby Sales Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0c0c16;
+  --bg-card: #13131f;
+  --bg-card2: #18182a;
+  --accent: #7c3aed;
+  --accent-light: #a78bfa;
+  --blue: #3b82f6;
+  --green: #10b981;
+  --amber: #f59e0b;
+  --red: #f43f5e;
+  --border: #1e1e32;
+  --text: #e2e8f0;
+  --muted: #64748b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+  min-height: 100vh;
+}
+
+/* ── HEADER ── */
+.header {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 14px 32px;
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; z-index: 50;
+}
+.header-brand { display: flex; align-items: center; gap: 10px; }
+.logo {
+  width: 34px; height: 34px;
+  background: linear-gradient(135deg, var(--accent), #4f46e5);
+  border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 900; font-size: 15px; color: #fff; flex-shrink: 0;
+}
+.header-title { font-size: 16px; font-weight: 700; }
+.header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 10px; }
+.data-badge {
+  font-size: 11px;
+  background: rgba(124,58,237,.15); color: var(--accent-light);
+  border: 1px solid rgba(124,58,237,.3);
+  border-radius: 20px; padding: 4px 10px;
+}
+.btn {
+  background: var(--accent); color: #fff; border: none;
+  border-radius: 8px; padding: 7px 14px;
+  font-size: 12px; font-weight: 600; cursor: pointer;
+  display: flex; align-items: center; gap: 5px;
+  transition: background .15s;
+}
+.btn:hover { background: #6d28d9; }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* ── SLICER ── */
+.slicer-bar {
+  background: var(--bg-card);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 32px;
+  display: flex; align-items: center; gap: 8px;
+  position: sticky; top: 63px; z-index: 40;
+}
+.slicer-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted); margin-right: 4px; flex-shrink: 0;
+}
+.slicer-btn, .rep-btn {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 20px;
+  padding: 5px 14px; font-size: 12px; font-weight: 600;
+  cursor: pointer; transition: all .15s; white-space: nowrap;
+}
+.slicer-btn:hover, .rep-btn:hover { border-color: var(--accent-light); color: var(--text); }
+.slicer-btn.active, .rep-btn.active {
+  background: rgba(124,58,237,.2); color: var(--accent-light);
+  border-color: rgba(124,58,237,.5);
+}
+.slicer-hint { font-size: 10px; color: var(--muted); margin-left: auto; opacity: 0.55; }
+
+/* ── LAYOUT ── */
+main { padding: 24px 32px; max-width: 1560px; margin: 0 auto; }
+.section-label {
+  font-size: 10px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1px; color: var(--muted);
+  margin-bottom: 12px; margin-top: 28px;
+}
+
+/* ── KPI CARDS ── */
+.kpi-row { display: grid; grid-template-columns: repeat(8, 1fr); gap: 12px; margin-bottom: 4px; }
+.kpi {
+  background: var(--bg-card); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px;
+}
+.kpi-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+.kpi-val { font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.kpi-sub { font-size: 11px; color: var(--muted); }
+.c-purple { color: var(--accent-light); }
+.c-green  { color: var(--green); }
+.c-amber  { color: var(--amber); }
+.c-red    { color: var(--red); }
+.c-blue   { color: var(--blue); }
+
+/* ── CHART CARDS ── */
+.grid-2  { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3  { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-32 { display: grid; grid-template-columns: 3fr 2fr; gap: 16px; margin-bottom: 16px; }
+.grid-23 { display: grid; grid-template-columns: 2fr 3fr; gap: 16px; margin-bottom: 16px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.card-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+.chart-wrap { position: relative; }
+
+/* ── METRIC ROWS ── */
+.metric-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 9px 0; border-bottom: 1px solid rgba(255,255,255,.04);
+}
+.metric-row:last-child { border-bottom: none; }
+.metric-lbl { font-size: 12px; color: var(--muted); }
+.metric-val { font-size: 14px; font-weight: 700; }
+
+/* ── TABLE ── */
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl thead th {
+  text-align: left; padding: 8px 12px;
+  font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px;
+  color: var(--muted); border-bottom: 1px solid var(--border);
+}
+.tbl tbody td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.03); }
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover td { background: rgba(255,255,255,.015); }
+
+/* ── PILL ── */
+.pill { display: inline-block; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; }
+.pill-green { background: rgba(16,185,129,.15); color: #10b981; }
+.pill-amber { background: rgba(245,158,11,.15); color: #f59e0b; }
+.pill-red   { background: rgba(244,63,94,.15);  color: #f43f5e; }
+.pill-blue  { background: rgba(59,130,246,.15); color: #60a5fa; }
+.pill-purple{ background: rgba(124,58,237,.15); color: #a78bfa; }
+
+/* Tooltip via title — enhance with CSS for truncated cells */
+.tbl tbody td { max-width: 220px; }
+[title] { cursor: default; }
+
+/* ── FOOTER ── */
+.footer { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 0 32px; }
+.footer a { color: var(--accent-light); text-decoration: none; }
+
+/* ── STATUS DOT ── */
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.dot-live   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-cached { background: var(--amber); }
+.dot-error  { background: var(--red); }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">C</div>
+    <div>
+      <div class="header-title">Sales &amp; Revenue Dashboard</div>
+      <div class="header-sub" id="headerSub">Salesforce via Coefficient · Copy of AGENT_DATA_SFDC_SALES</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="forecast_review.html" class="nav-link">📋 Forecast Review</a>
+    <a href="sales_rep_dashboard.html" class="nav-link">AE View</a>
+    <span class="data-badge" id="dataBadge"><span class="status-dot dot-cached"></span>Cached data</span>
+    <button class="btn" id="refreshBtn" onclick="refreshFromSheets()">↻ Refresh from Sheets</button>
+  </div>
+</header>
+
+<div class="slicer-bar">
+  <span class="slicer-label">Quarter</span>
+  <button class="slicer-btn active" onclick="setQuarter(null)">All</button>
+  <button class="slicer-btn" onclick="setQuarter(0)">Q1'26</button>
+  <button class="slicer-btn" onclick="setQuarter(1)">Q2'26</button>
+  <button class="slicer-btn" onclick="setQuarter(2)">Q3'26</button>
+  <button class="slicer-btn" onclick="setQuarter(3)">Q4'26</button>
+  <button class="slicer-btn" onclick="setQuarter(4)">FY'27</button>
+  <span class="slicer-hint">Filters all charts &amp; tables</span>
+</div>
+<div class="slicer-bar" id="repSlicerBar" style="display:none; top:107px;">
+  <span class="slicer-label">Rep</span>
+  <span class="slicer-hint" style="margin-left:0;opacity:0.4;">Load live data to see reps</span>
+</div>
+<div class="slicer-bar" id="partnerSlicerBar" style="display:none; top:151px;">
+  <span class="slicer-label">Partner</span>
+  <span class="slicer-hint" style="margin-left:0;opacity:0.4;">No partner data yet · See setup below</span>
+</div>
+
+<main>
+
+<!-- ── KPI ROW ── -->
+<div class="section-label">Key Metrics</div>
+<div class="kpi-row" id="kpiRow"></div>
+
+<!-- ── PIPELINE + ARR PROJECTION ── -->
+<div class="section-label" style="margin-top:24px;">Pipeline &amp; ARR</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Open Pipeline by Stage</div>
+    <div class="card-sub">Delta ARR · Existing vs New Business · Current snapshot</div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="pipelineChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">ARR at Renewal Risk by Month</div>
+    <div class="card-sub" id="arrSub">Monthly and cumulative ARR at renewal · From Account data</div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="arrChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ── PIPELINE BY QUARTER + CLOSED WON ── -->
+<div class="section-label">Pipeline Added &amp; Closed Won by Quarter</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Pipeline Added by Quarter</div>
+    <div class="card-sub" id="pipeQSub">Stage 2 Discovery Start Date = pipeline entry · ARR + deal count</div>
+    <div class="chart-wrap" style="height:240px;"><canvas id="pipeQChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Closed Won by Quarter</div>
+    <div class="card-sub" id="wonQSub">Closed-Won Start Date · ARR + deal count</div>
+    <div class="chart-wrap" style="height:240px;"><canvas id="wonQChart"></canvas></div>
+  </div>
+</div>
+
+<!-- ── WON VS PIPELINE + TYPE ── -->
+<div class="grid-32">
+  <div class="card">
+    <div class="card-title">Won ARR vs Open Pipeline by Quarter</div>
+    <div class="card-sub" id="fy27Sub">Closed Won ARR and Open Pipeline ARR by quarter · From Opportunity data</div>
+    <div class="chart-wrap" style="height:240px;"><canvas id="fy27Chart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Open Pipeline by Opportunity Type</div>
+    <div class="card-sub" id="channelSub">New Business vs Expansion vs Renewal · From Opportunity Type field</div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="channelChart"></canvas></div>
+    <div id="channelLegend" style="margin-top:10px;"></div>
+  </div>
+</div>
+
+<!-- ── STAGE CONVERSION FUNNEL + VELOCITY ── -->
+<div class="section-label">Stage Conversion &amp; Sales Velocity</div>
+<div class="grid-2">
+  <div class="card">
+    <div class="card-title">Stage Entry Funnel</div>
+    <div class="card-sub">Deals that reached each stage · Stage 2 = pipeline entry · All time</div>
+    <div class="chart-wrap" style="height:260px;"><canvas id="funnelChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Sales Velocity (Actual)</div>
+    <div class="card-sub" id="velocityActualSub">Calculated from Opportunity data</div>
+    <div id="velocityActualPanel"></div>
+  </div>
+</div>
+
+<!-- ── AVG TIME IN STAGE ── -->
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Average Time in Stage — Closed-Won Deals</div>
+  <div class="card-sub" id="stageDurSub">Days between stage start dates · Based on won deals only</div>
+  <div class="chart-wrap" style="height:180px;"><canvas id="stageDurChart"></canvas></div>
+</div>
+
+<!-- ── CUSTOMER HEALTH + SEGMENTS ── -->
+<div class="section-label">Customer Health &amp; Segments</div>
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">Health Score Distribution</div>
+    <div class="card-sub" id="velocitySub">Customers grouped by health score · ARR weighted</div>
+    <div id="velocityPanel"></div>
+  </div>
+  <div class="card">
+    <div class="card-title">IB ARR by Segment</div>
+    <div class="card-sub" id="coverageSub">Install base ARR breakdown by customer segment</div>
+    <div class="chart-wrap" style="height:200px;"><canvas id="coverageChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Expansion Signals</div>
+    <div class="card-sub">Expansion potential by type · Accounts &amp; ARR</div>
+    <div id="renewalPanel"></div>
+  </div>
+</div>
+
+<!-- ── RENEWAL CALENDAR ── -->
+<div class="section-label">Renewal Risk Calendar</div>
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Upcoming Renewals with ARR at Risk</div>
+  <div class="card-sub" id="renewalSub">Accounts by renewal month · Cumulative ARR at risk</div>
+  <table class="tbl">
+    <thead><tr>
+      <th>Month</th><th># Accounts</th><th>ARR at Risk</th>
+      <th>Cumulative Risk</th><th>% of IB ARR</th><th>Top Accounts</th>
+    </tr></thead>
+    <tbody id="renewalBody"></tbody>
+  </table>
+</div>
+
+<!-- ── IB ARR ACCOUNTS ── -->
+<div class="section-label">IB ARR — Active Customers</div>
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Customer Accounts by ARR</div>
+  <div class="card-sub" id="accountsSub">Refresh from Sheets to load live account data</div>
+  <table class="tbl">
+    <thead><tr>
+      <th>#</th><th>Account</th><th>ARR</th><th>% of IB</th>
+      <th>Segment</th><th>Renewal</th><th>Health</th>
+      <th>Expansion</th><th>Usage (Active/Lic)</th><th>Risk Signal</th>
+    </tr></thead>
+    <tbody id="accountsBody"></tbody>
+  </table>
+</div>
+
+<!-- ── REP PERFORMANCE + SEGMENTS ── -->
+<div class="section-label">Rep Performance &amp; Pipeline by Segment</div>
+<div class="grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Rep Leaderboard</div>
+    <div class="card-sub">Open pipeline, won ARR &amp; win rate by sales rep · From Opportunity data</div>
+    <table class="tbl" id="mktgTable"></table>
+  </div>
+  <div class="card">
+    <div class="card-title">Pipeline &amp; Won ARR by Segment</div>
+    <div class="card-sub">Open pipeline and closed won broken out by company segment</div>
+    <table class="tbl" id="salesTable"></table>
+  </div>
+</div>
+
+<!-- ── PRODUCT MIX ── -->
+<div class="section-label">Product Mix</div>
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Pipeline &amp; Won ARR by Product</div>
+  <div class="card-sub" id="pipegenSub">From Product / OpportunityLineItem tab in Coefficient sheet</div>
+  <div class="chart-wrap" style="height:220px;"><canvas id="pipegenChart"></canvas></div>
+</div>
+
+<!-- ── PARTNER PIPELINE ── -->
+<div class="section-label">Partner Pipeline &amp; Attribution</div>
+<div class="grid-2" style="margin-bottom:16px;">
+  <div class="card">
+    <div class="card-title">Partner Pipeline Performance</div>
+    <div class="card-sub" id="partnerSub">Opportunities attributed to partners · Open pipeline + closed won ARR</div>
+    <table class="tbl" id="partnerTable"></table>
+  </div>
+  <div class="card" style="background:rgba(124,58,237,.05); border-color:rgba(124,58,237,.25);">
+    <div class="card-title" style="color:var(--accent-light);">&#9881; Partner Setup Guide</div>
+    <div class="card-sub">Two ways to tag partner-sourced opportunities</div>
+    <div style="font-size:12px;line-height:1.7;color:var(--text);">
+      <p style="margin-bottom:10px;">
+        <strong style="color:var(--accent-light);">Option A — Salesforce field (recommended)</strong><br>
+        Add <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;">Partner_Account__c</code>
+        (or similar) to your Opportunity object in Salesforce, then add it to your Coefficient SOQL:
+        <code style="background:rgba(255,255,255,.07);padding:1px 5px;border-radius:3px;display:block;margin:6px 0;">SELECT …, Partner_Account__c FROM Opportunity</code>
+        The dashboard picks it up automatically on next refresh.
+      </p>
+      <p style="margin-bottom:10px;">
+        <strong style="color:var(--accent-light);">Option B — Manual overlay tab (no SF changes needed)</strong><br>
+        In the same Google Sheet as your Coefficient data, create a tab named
+        <strong>Partners</strong> with three columns:
+      </p>
+      <table style="width:100%;border-collapse:collapse;font-size:11px;margin-bottom:10px;">
+        <thead><tr>
+          <th style="text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);">OppId</th>
+          <th style="text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);">Partner</th>
+          <th style="text-align:left;color:var(--muted);padding:4px 8px;border-bottom:1px solid var(--border);">Partner Type</th>
+        </tr></thead>
+        <tbody>
+          <tr><td style="padding:4px 8px;color:var(--muted);font-size:10px;">006Ps00000…</td><td style="padding:4px 8px;">Okta</td><td style="padding:4px 8px;color:var(--muted);">Referral</td></tr>
+          <tr><td style="padding:4px 8px;color:var(--muted);font-size:10px;">006Ps00000…</td><td style="padding:4px 8px;">CrowdStrike</td><td style="padding:4px 8px;color:var(--muted);">Co-Sell</td></tr>
+        </tbody>
+      </table>
+      <p style="color:var(--muted);font-size:11px;">
+        Copy the Opportunity Id from Salesforce (or from the Opportunity tab in the sheet).
+        Hit <strong>↻ Refresh from Sheets</strong> after each update — no redeployment needed.
+      </p>
+    </div>
+  </div>
+</div>
+
+<div class="footer" id="footer">
+  Data sourced from <strong>Copy of AGENT_DATA_SFDC_SALES</strong> (Google Sheets) ·
+  Salesforce import via Coefficient ·
+  <a href="https://docs.google.com/spreadsheets/d/1g0jMDpCPUm07WIS4Mmyk0HzdU2o7aTN1I8Po59qASrU" target="_blank">Open Source Sheet ↗</a>
+</div>
+</main>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+//  SCRIPT URL
+// ════════════════════════════════════════════════════════════════
+const SCRIPT_URL = 'https://script.google.com/a/macros/cerby.com/s/AKfycbw9TgnAp9IKgk9zkzZtYN2ArI_r7ZDH4HbG234TgKxZBKltWg3zPNseajAnaVTYhah8/exec';
+
+// ════════════════════════════════════════════════════════════════
+//  DATA — all values calculated from Opportunity, Account, Product tabs
+//         (no hardcoded fallbacks — show empty states until live data loads)
+// ════════════════════════════════════════════════════════════════
+const D = {
+  oppMetrics: {
+    pipeByQ: [], wonByQ: [], openByStage: {},
+    byType: {}, bySegment: {},
+    funnel: {s2:0,s3:0,s4:0,s5:0,s6:0,s8:0,s9:0},
+    avgStageDays: {s2s3:null,s3s4:null,s4s5:null,s5s6:null,s6s9:null},
+    velocity: {totalOpenOpps:0,openPipeARR:0,wonCount:0,wonARR:0,lostCount:0,winRate:0,avgDealARR:0,avgCycleDays:0,velocityMonthly:0},
+    repBreakdown: {}, reps: [],
+    byPartner: {}, partners: [],
+  },
+  accounts: { customers:[], totalIbARR:0, activeCount:0, renewalCalendar:[] },
+  products: { byProduct:[] },
+};
+
+// ════════════════════════════════════════════════════════════════
+//  QUARTER SLICER
+// ════════════════════════════════════════════════════════════════
+let selectedQ       = null;
+let selectedRep     = null;
+let repList         = [];   // populated from D.oppMetrics.reps after live data loads
+let selectedPartner = null;
+let partnerList     = [];   // populated from D.oppMetrics.partners after live data loads
+
+// Quarter labels (used by slicers + qtrFilter)
+const QUARTERS = ["Q1'26","Q2'26","Q3'26","Q4'26","FY'27"];
+
+const QUARTER_MONTHS = {
+  0:['2026-01','2026-02','2026-03'], 1:['2026-04','2026-05','2026-06'],
+  2:['2026-07','2026-08','2026-09'], 3:['2026-10','2026-11','2026-12'],
+  4:['2027-01','2027-02','2027-03','2027-04','2027-05','2027-06',
+     '2027-07','2027-08','2027-09','2027-10','2027-11','2027-12'],
+};
+
+function calFilter() {
+  const cal = D.accounts.renewalCalendar || [];
+  if (selectedQ === null) return cal;
+  const months = QUARTER_MONTHS[selectedQ] || [];
+  return cal.filter(r => months.includes(r.m));
+}
+
+function qtrFilter(rows) {
+  if (selectedQ === null) return rows || [];
+  const qLabel = QUARTERS[selectedQ];
+  return (rows || []).filter(r => r.q === qLabel);
+}
+
+function setQuarter(idx) {
+  selectedQ = idx;
+  document.querySelectorAll('.slicer-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === (idx === null ? 0 : idx + 1));
+  });
+  initAll();
+}
+
+// Returns the opp-metrics object filtered to the selected rep (or global if none)
+function activeOppMetrics() {
+  if (!selectedRep || !D.oppMetrics.repBreakdown) return D.oppMetrics;
+  return D.oppMetrics.repBreakdown[selectedRep] || D.oppMetrics;
+}
+
+function setRep(idx) {
+  selectedRep = idx === null ? null : repList[idx];
+  document.querySelectorAll('.rep-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === (idx === null ? 0 : idx + 1));
+  });
+  initAll();
+}
+
+function buildPartnerSlicer() {
+  partnerList = (D.oppMetrics && D.oppMetrics.partners) ? D.oppMetrics.partners : [];
+  const bar = document.getElementById('partnerSlicerBar');
+  if (!partnerList.length) { bar.style.display = 'none'; return; }
+
+  let html = '<span class="slicer-label">Partner</span>';
+  html += `<button class="rep-btn${!selectedPartner ? ' active' : ''}" onclick="setPartner(null)">All</button>`;
+  partnerList.forEach((p, i) => {
+    const isActive = selectedPartner === p ? ' active' : '';
+    html += `<button class="rep-btn${isActive}" onclick="setPartner(${i})">${p}</button>`;
+  });
+  html += '<span class="slicer-hint" style="margin-left:auto;opacity:0.55;">Filter partner table by partner</span>';
+
+  // Position relative to whether rep slicer is visible
+  const repBar = document.getElementById('repSlicerBar');
+  const repVisible = repBar && repBar.style.display !== 'none';
+  bar.style.top = repVisible ? '151px' : '107px';
+  bar.style.display = '';
+  bar.innerHTML = html;
+}
+
+function setPartner(idx) {
+  selectedPartner = idx === null ? null : partnerList[idx];
+  document.querySelectorAll('#partnerSlicerBar .rep-btn').forEach((btn, i) => {
+    btn.classList.toggle('active', i === (idx === null ? 0 : idx + 1));
+  });
+  buildPartnerTable();
+}
+
+// AE roster — only these reps appear in the slicer
+const SALES_REPS = ['Carlos', 'Travis', 'Hainsley', 'Arye', 'Nageye'];
+
+function buildRepSlicer() {
+  const allSfReps = (D.oppMetrics && D.oppMetrics.reps) ? D.oppMetrics.reps : [];
+  const bar = document.getElementById('repSlicerBar');
+  if (!allSfReps.length) { bar.style.display = 'none'; return; }
+
+  // Map each AE short name → full SF name; skip anyone not in the 5-rep list
+  repList = [];
+  SALES_REPS.forEach(shortName => {
+    const lower = shortName.toLowerCase();
+    const full  = allSfReps.find(r => r.toLowerCase().split(' ')[0] === lower);
+    if (full) repList.push(full);
+  });
+
+  if (!repList.length) { bar.style.display = 'none'; return; }
+
+  let html = '<span class="slicer-label">Rep</span>';
+  html += `<button class="rep-btn${!selectedRep ? ' active' : ''}" onclick="setRep(null)">All</button>`;
+  repList.forEach((r, i) => {
+    const isActive = selectedRep === r ? ' active' : '';
+    // Show first name only for compact display
+    const label = r.trim().split(/\s+/)[0];
+    html += `<button class="rep-btn${isActive}" onclick="setRep(${i})">${label}</button>`;
+  });
+  html += '<span class="slicer-hint" style="margin-left:auto;opacity:0.55;">Filter opportunity charts by rep</span>';
+
+  bar.style.display = '';
+  bar.innerHTML = html;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  HELPERS
+// ════════════════════════════════════════════════════════════════
+const fmt = {
+  usd: (n) => {
+    if (n == null) return '—';
+    const abs = Math.abs(n);
+    if (abs >= 1e6) return (n<0?'-':'') + '$' + (abs/1e6).toFixed(2) + 'M';
+    if (abs >= 1000) return (n<0?'-':'') + '$' + Math.round(abs/1000) + 'K';
+    return '$' + n.toLocaleString();
+  },
+  pct: (n) => (n == null ? '—' : n + '%'),
+  num: (n) => n?.toLocaleString() ?? '—',
+};
+
+const C = {
+  purple:'#7c3aed', purpleA:'rgba(124,58,237,.18)',
+  blue:'#3b82f6',   blueA:'rgba(59,130,246,.18)',
+  green:'#10b981',  greenA:'rgba(16,185,129,.18)',
+  amber:'#f59e0b',  amberA:'rgba(245,158,11,.18)',
+  red:'#f43f5e',    redA:'rgba(244,63,94,.18)',
+};
+
+const baseScales = {
+  x: { grid:{color:'rgba(255,255,255,.04)'}, ticks:{color:'#64748b',font:{size:11}} },
+  y: { grid:{color:'rgba(255,255,255,.04)'}, ticks:{color:'#64748b',font:{size:11}} },
+};
+const baseLegend = { labels:{color:'#94a3b8',font:{size:11},padding:16} };
+
+// ════════════════════════════════════════════════════════════════
+//  KPI ROW
+// ════════════════════════════════════════════════════════════════
+function buildKPIRow() {
+  const m      = activeOppMetrics();   // rep-filtered (or global)
+  const v      = m.velocity;
+  const qLabel = selectedQ !== null ? QUARTERS[selectedQ] : null;
+  const repLbl = selectedRep || null;
+
+  // Quarter-aware pipeline + won totals — use the per-quarter arrays when a
+  // quarter is selected so the numbers match what the bar charts show.
+  const wonRows   = qtrFilter(m.wonByQ  || []);
+  const pipeRows  = qtrFilter(m.pipeByQ || []);
+  const qWonARR   = wonRows.reduce( (s,r) => s + r.arr,   0);
+  const qWonCount = wonRows.reduce( (s,r) => s + r.count, 0);
+  const qPipeARR  = pipeRows.reduce((s,r) => s + r.arr,   0);
+  const qPipeCount= pipeRows.reduce((s,r) => s + r.count, 0);
+
+  // When a quarter filter is active, show quarter-scoped numbers;
+  // otherwise fall back to the all-time velocity totals.
+  const showPipeARR  = qLabel ? qPipeARR   : v.openPipeARR;
+  const showPipeOpps = qLabel ? qPipeCount : v.totalOpenOpps;
+  const showWonARR   = qLabel ? qWonARR    : v.wonARR;
+  const showWonCount = qLabel ? qWonCount  : v.wonCount;
+  const showAvgDeal  = showWonCount > 0 ? Math.round(showWonARR / showWonCount) : 0;
+
+  // Rep-filtered account set — drives IB ARR, renewal risk, and the accounts table
+  const repAccounts = repLbl
+    ? (D.accounts.customers || []).filter(c => c.ownerName === repLbl)
+    : (D.accounts.customers || []);
+  const repHasOwners = (D.accounts.customers || []).some(c => c.ownerName);
+  const ibARR        = repAccounts.reduce((s,c) => s + c.arr, 0) || D.accounts.totalIbARR;
+  const ibCount      = repAccounts.length || D.accounts.activeCount || 0;
+
+  // Renewal risk filtered by both rep accounts AND quarter
+  const calRows   = selectedRep
+    ? (D.accounts.renewalCalendar || []).filter(r =>
+        repAccounts.some(c => r.top && r.top.includes(c.name)))
+    : calFilter();
+  const riskTotal = calFilter().reduce((s,r) => s + r.arr, 0);   // quarter filter only for risk $
+  const riskSub   = qLabel ? `${qLabel} renewals` : `${calFilter().length} months upcoming`;
+
+  const repSuffix = repLbl ? ` · ${repLbl}` : '';
+  const winRateC  = v.winRate >= 20 ? 'c-green' : v.winRate > 0 ? 'c-amber' : '';
+
+  const kpis = [
+    { lbl: 'IB ARR',
+      val: ibARR ? fmt.usd(ibARR) : '—',
+      sub: repLbl && !repHasOwners
+        ? `Add Owner.Name to Account SOQL to filter by rep`
+        : `${ibCount} customer${ibCount !== 1 ? 's' : ''}${repSuffix}`,
+      c: 'c-purple' },
+    { lbl: 'Open Pipeline',
+      val: showPipeARR ? fmt.usd(showPipeARR) : '—',
+      sub: `${showPipeOpps || 0} opportunities${qLabel ? ' entered ' + qLabel : ''}${repSuffix}`,
+      c: 'c-blue' },
+    { lbl: 'Win Rate',
+      val: v.winRate ? fmt.pct(v.winRate) : '—',
+      sub: (v.wonCount ? `${v.wonCount} won / ${v.wonCount + v.lostCount} closed` : 'Load live data') + repSuffix,
+      c: winRateC },
+    { lbl: qLabel ? qLabel + ' Won ARR' : 'Closed Won ARR',
+      val: showWonARR ? fmt.usd(showWonARR) : '—',
+      sub: `${showWonCount || 0} deals${qLabel ? ' in ' + qLabel : ' all-time'}${repSuffix}`,
+      c: 'c-green' },
+    { lbl: 'Avg Deal ARR',
+      val: showAvgDeal ? fmt.usd(showAvgDeal) : '—',
+      sub: `Per won deal${qLabel ? ' in ' + qLabel : ''}${repSuffix}`, c: 'c-green' },
+    { lbl: 'Sales Velocity',
+      val: v.velocityMonthly ? fmt.usd(v.velocityMonthly) : '—',
+      sub: 'Implied new ARR / month' + repSuffix, c: 'c-amber' },
+    { lbl: 'Avg Sales Cycle',
+      val: v.avgCycleDays ? v.avgCycleDays + ' days' : '—',
+      sub: 'S2 Discovery to Close' + repSuffix, c: 'c-blue' },
+    { lbl: 'ARR at Renewal Risk',
+      val: riskTotal ? fmt.usd(riskTotal) : '—',
+      sub: riskSub, c: 'c-amber' },
+  ];
+
+  document.getElementById('kpiRow').innerHTML = kpis.map(k =>
+    `<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val ${k.c}">${k.val}</div><div class="kpi-sub">${k.sub}</div></div>`
+  ).join('');
+}
+
+// ════════════════════════════════════════════════════════════════
+//  EXISTING CHARTS
+// ════════════════════════════════════════════════════════════════
+const charts = {};
+
+function buildPipelineChart() {
+  const ctx = document.getElementById('pipelineChart');
+  charts.pipeline?.destroy();
+
+  // Use live openByStage from Opportunity tab when available
+  const liveStages = activeOppMetrics().openByStage;
+  const hasLive    = liveStages && Object.keys(liveStages).length > 0;
+
+  if (!hasLive) {
+    document.querySelector('#pipelineChart').closest('.card').querySelector('.card-sub').textContent =
+      'Load live data to see open pipeline by stage';
+    return;
+  }
+
+  const sorted = Object.entries(liveStages)
+    .filter(([,v]) => v.arr !== 0 || v.count > 0)
+    .sort((a,b) => (parseFloat(a[0]) || 99) - (parseFloat(b[0]) || 99));
+
+  const labels      = sorted.map(([s]) => s);
+  const existingARR = sorted.map(([,v]) => v.existingArr || 0);
+  const newARR      = sorted.map(([,v]) => v.newArr      || 0);
+
+  document.querySelector('#pipelineChart').closest('.card').querySelector('.card-sub').textContent =
+    `${Object.values(liveStages).reduce((s,v)=>s+v.count,0)} open deals · New vs Existing business by stage`;
+
+  charts.pipeline = new Chart(ctx, {
+    type:'bar',
+    data:{labels, datasets:[
+      {label:'Existing Biz', data:existingARR, backgroundColor:C.blue,  borderRadius:3, stack:'s'},
+      {label:'New Biz',      data:newARR,      backgroundColor:C.purple, borderRadius:3, stack:'s'},
+    ]},
+    options:{indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{legend:baseLegend, tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt.usd(c.raw)}`}}},
+      scales:{
+        x:{...baseScales.x, stacked:true, ticks:{...baseScales.x.ticks, callback:v=>fmt.usd(v)}},
+        y:{...baseScales.y, stacked:true},
+      }},
+  });
+}
+
+function buildRenewalExposureChart() {
+  const ctx  = document.getElementById('arrChart');
+  const rows = calFilter();
+  charts.arr?.destroy();
+
+  document.getElementById('arrSub').textContent = rows.length
+    ? `${rows.length} month${rows.length > 1 ? 's' : ''} · ARR at renewal risk`
+    : 'Load live account data to see renewal exposure';
+
+  if (!rows.length) return;
+
+  const labels  = rows.map(r => r.m);
+  const arrVals = rows.map(r => r.arr / 1e6);
+  const cumVals = rows.map(r => r.cum / 1e6);
+
+  charts.arr = new Chart(ctx, {
+    data: { labels, datasets: [
+      { type:'bar',  label:'Monthly ARR at Risk', data:arrVals, backgroundColor:C.blue,  borderRadius:3 },
+      { type:'line', label:'Cumulative Risk',     data:cumVals, borderColor:C.amber, backgroundColor:'transparent', borderWidth:2, pointBackgroundColor:C.amber, tension:.3 },
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:baseLegend,tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt.usd(c.raw*1e6)}`}}},
+      scales:{x:baseScales.x,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>'$'+v.toFixed(1)+'M'}}}},
+  });
+}
+
+function buildWonVsPipelineChart() {
+  const ctx      = document.getElementById('fy27Chart');
+  const wonRows  = qtrFilter(D.oppMetrics.wonByQ  || []);
+  const pipeRows = qtrFilter(D.oppMetrics.pipeByQ || []);
+  const allQ     = [...new Set([...wonRows.map(r=>r.q), ...pipeRows.map(r=>r.q)])].sort();
+
+  charts.fy27?.destroy();
+  document.getElementById('fy27Sub').textContent = allQ.length
+    ? `${allQ.length} quarter${allQ.length>1?'s':''} · Closed Won ARR vs Open Pipeline ARR`
+    : 'Load live data to see won vs pipeline by quarter';
+  if (!allQ.length) return;
+
+  const wonMap  = Object.fromEntries(wonRows.map(r  => [r.q, r]));
+  const pipeMap = Object.fromEntries(pipeRows.map(r => [r.q, r]));
+
+  charts.fy27 = new Chart(ctx, {
+    type:'bar',
+    data:{ labels:allQ, datasets:[
+      { label:'Closed Won ARR', data:allQ.map(q=>(wonMap[q]?.arr  ||0)/1e6), backgroundColor:C.green,  borderRadius:4 },
+      { label:'Open Pipeline',  data:allQ.map(q=>(pipeMap[q]?.arr ||0)/1e6), backgroundColor:C.purple, borderRadius:4, opacity:.7 },
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:baseLegend,tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt.usd(c.raw*1e6)}`}}},
+      scales:{x:baseScales.x,y:{...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>'$'+v.toFixed(1)+'M'}}}},
+  });
+}
+
+function buildPipelineTypeChart() {
+  const ctx     = document.getElementById('channelChart');
+  const byType  = D.oppMetrics.byType || {};
+  const entries = Object.entries(byType).filter(([,v]) => v.openARR > 0).sort((a,b) => b[1].openARR - a[1].openARR);
+  const total   = entries.reduce((s,[,v]) => s + v.openARR, 0);
+  const colors  = [C.green, C.purple, C.amber, C.blue, C.red];
+
+  charts.channel?.destroy();
+  document.getElementById('channelSub').textContent = total
+    ? `${fmt.usd(total)} open pipeline · By opportunity type`
+    : 'Load live data to see pipeline by type';
+
+  if (!entries.length) {
+    document.getElementById('channelLegend').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:20px 0;">No pipeline data yet</div>';
+    return;
+  }
+
+  const labels = entries.map(([k]) => k);
+  const vals   = entries.map(([,v]) => v.openARR);
+
+  charts.channel = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:colors.slice(0,labels.length),borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'68%',
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt.usd(c.raw)} (${(c.raw/total*100).toFixed(0)}%)`}}}},
+  });
+  document.getElementById('channelLegend').innerHTML = labels.map((l,i)=>
+    `<div style="display:flex;align-items:center;gap:6px;margin-bottom:5px;font-size:11px;">
+      <div style="width:10px;height:10px;border-radius:2px;background:${colors[i]};flex-shrink:0;"></div>
+      <span style="color:#94a3b8">${l}</span>
+      <span style="font-weight:700;margin-left:auto;">${fmt.usd(vals[i])}</span>
+     </div>`).join('');
+}
+
+function buildSegmentARRChart() {
+  const ctx       = document.getElementById('coverageChart');
+  const customers = D.accounts.customers || [];
+  charts.coverage?.destroy();
+
+  // Aggregate IB ARR by segment
+  const segMap = {};
+  for (const c of customers) {
+    const seg = c.segment || 'Unknown';
+    if (!segMap[seg]) segMap[seg] = 0;
+    segMap[seg] += c.arr;
+  }
+  const entries = Object.entries(segMap).sort((a,b) => b[1] - a[1]);
+
+  document.getElementById('coverageSub').textContent = entries.length
+    ? `${fmt.usd(D.accounts.totalIbARR)} IB ARR · By customer segment`
+    : 'Load live account data to see ARR by segment';
+
+  if (!entries.length) return;
+
+  const colors = [C.purple, C.blue, C.green, C.amber, C.red];
+  const labels  = entries.map(([k]) => k);
+  const vals    = entries.map(([,v]) => v / 1e6);
+
+  charts.coverage = new Chart(ctx, {
+    type:'doughnut',
+    data:{labels,datasets:[{data:vals,backgroundColor:colors.slice(0,labels.length),borderWidth:0,hoverOffset:6}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{
+        legend:{labels:{color:'#94a3b8',font:{size:11},padding:10}},
+        tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt.usd(c.raw*1e6)}`}},
+      }},
+  });
+}
+
+function buildProductMixChart() {
+  const ctx      = document.getElementById('pipegenChart');
+  const products = (D.products && D.products.byProduct) ? D.products.byProduct : [];
+  charts.pipegen?.destroy();
+
+  document.getElementById('pipegenSub').textContent = products.length
+    ? `${products.length} product line${products.length>1?'s':''} · Open pipeline + closed won ARR`
+    : 'Load live data to see product mix · Requires Product tab in Coefficient sheet';
+
+  if (!products.length) return;
+
+  const labels  = products.map(p => p.name);
+  const openARR = products.map(p => p.openARR / 1e6);
+  const wonARR  = products.map(p => p.wonARR  / 1e6);
+
+  charts.pipegen = new Chart(ctx, {
+    type:'bar',
+    data:{labels,datasets:[
+      {label:'Open Pipeline',data:openARR,backgroundColor:C.purple,borderRadius:3,stack:'s'},
+      {label:'Won ARR',      data:wonARR, backgroundColor:C.green, borderRadius:3,stack:'s'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:baseLegend,tooltip:{callbacks:{label:c=>` ${c.dataset.label}: ${fmt.usd(c.raw*1e6)}`}}},
+      scales:{
+        x:{...baseScales.x,stacked:true},
+        y:{...baseScales.y,stacked:true,ticks:{...baseScales.y.ticks,callback:v=>'$'+v.toFixed(1)+'M'}},
+      }},
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  NEW CHARTS — Pipeline by Quarter, Closed Won, Funnel, Stage Duration
+// ════════════════════════════════════════════════════════════════
+function buildPipeQChart() {
+  const ctx = document.getElementById('pipeQChart');
+  const rows = qtrFilter(activeOppMetrics().pipeByQ);
+  document.getElementById('pipeQSub').textContent = rows.length
+    ? `${rows.length} quarter${rows.length>1?'s':''} · Stage 2 Discovery Start Date as pipeline entry`
+    : 'Stage 2 Discovery Start Date = pipeline entry · Load live data to populate';
+
+  charts.pipeQ?.destroy();
+  if (!rows.length) return;
+
+  charts.pipeQ = new Chart(ctx, {
+    data:{
+      labels: rows.map(r=>r.q),
+      datasets:[
+        {type:'bar', label:'Pipeline ARR',data:rows.map(r=>r.arr/1e6), backgroundColor:C.purple,borderRadius:4,yAxisID:'y'},
+        {type:'line',label:'Deal Count',  data:rows.map(r=>r.count),   borderColor:C.amber,backgroundColor:'transparent',pointBackgroundColor:C.amber,borderWidth:2,yAxisID:'y2'},
+      ],
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:baseLegend,tooltip:{callbacks:{label:c=>c.datasetIndex===0?` Pipeline ARR: ${fmt.usd(c.raw*1e6)}`:`  Deals: ${c.raw}`}}},
+      scales:{
+        x:baseScales.x,
+        y: {position:'left',...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>'$'+v.toFixed(1)+'M'}},
+        y2:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:11}}},
+      }},
+  });
+}
+
+function buildWonQChart() {
+  const ctx = document.getElementById('wonQChart');
+  const rows = qtrFilter(activeOppMetrics().wonByQ);
+  document.getElementById('wonQSub').textContent = rows.length
+    ? `${rows.length} quarter${rows.length>1?'s':''} · Closed-Won Start Date`
+    : 'Closed-Won Start Date · Load live data to populate';
+
+  charts.wonQ?.destroy();
+  if (!rows.length) return;
+
+  charts.wonQ = new Chart(ctx, {
+    data:{
+      labels: rows.map(r=>r.q),
+      datasets:[
+        {type:'bar', label:'Won ARR',  data:rows.map(r=>r.arr/1e6),backgroundColor:C.green,borderRadius:4,yAxisID:'y'},
+        {type:'line',label:'Won Deals',data:rows.map(r=>r.count),  borderColor:C.blue,backgroundColor:'transparent',pointBackgroundColor:C.blue,borderWidth:2,yAxisID:'y2'},
+      ],
+    },
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:baseLegend,tooltip:{callbacks:{label:c=>c.datasetIndex===0?` Won ARR: ${fmt.usd(c.raw*1e6)}`:`  Deals: ${c.raw}`}}},
+      scales:{
+        x:baseScales.x,
+        y: {position:'left',...baseScales.y,ticks:{...baseScales.y.ticks,callback:v=>'$'+v.toFixed(1)+'M'}},
+        y2:{position:'right',grid:{display:false},ticks:{color:'#64748b',font:{size:11}}},
+      }},
+  });
+}
+
+function buildFunnelChart() {
+  const ctx = document.getElementById('funnelChart');
+  if (!ctx) return;
+  const f = activeOppMetrics().funnel;
+
+  charts.funnel?.destroy();
+  charts.funnel = null;
+
+  // Keep canvas in DOM — use a sibling placeholder instead of replacing innerHTML
+  let ph = ctx.parentElement.querySelector('.chart-ph');
+  if (!ph) {
+    ph = document.createElement('div');
+    ph.className = 'chart-ph';
+    ph.style.cssText = 'display:none;padding:40px;text-align:center;color:var(--muted);font-size:12px;';
+    ph.textContent = 'Load live data to see stage funnel';
+    ctx.parentElement.appendChild(ph);
+  }
+
+  if (!f.s2) {
+    ctx.style.display = 'none';
+    ph.style.display = '';
+    return;
+  }
+
+  ctx.style.display = '';
+  ph.style.display = 'none';
+
+  const values = [f.s2,f.s3,f.s4,f.s5,f.s6,f.s8,f.s9];
+  const s2ref  = f.s2 || 1;
+  const labels = ['S2 Discovery','S3 Scoping','S4 Sol. Val.','S5 Proposal','S6 Negotiate','S8 Pending','S9 Won'];
+  const alphas = [0.95,0.82,0.70,0.60,0.50,0.42,0.35];
+  const convRates = values.map(v=>Math.round(v/s2ref*100));
+
+  charts.funnel = new Chart(ctx, {
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Deals',
+      data:values,
+      backgroundColor:alphas.map(a=>`rgba(124,58,237,${a})`),
+      borderRadius:4,
+    }]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},
+        tooltip:{callbacks:{label:c=>` ${fmt.num(c.raw)} deals · ${convRates[c.dataIndex]}% of S2`}}},
+      scales:{
+        x:baseScales.x,
+        y:{...baseScales.y,ticks:{...baseScales.y.ticks}},
+      }},
+  });
+}
+
+function buildStageDurChart() {
+  const ctx = document.getElementById('stageDurChart');
+  const d = activeOppMetrics().avgStageDays;
+  const values = [d.s2s3,d.s3s4,d.s4s5,d.s5s6,d.s6s9];
+  const labels = ['S2→S3 (Disc→Scope)','S3→S4 (Scope→Val.)','S4→S5 (Val.→Prop.)','S5→S6 (Prop.→Neg.)','S6→Won'];
+  const total  = values.filter(v=>v!==null).reduce((a,b)=>a+b,0);
+
+  document.getElementById('stageDurSub').textContent = total
+    ? `Total avg cycle: ${total} days · Based on closed-won deals`
+    : 'Based on closed-won deals · Load live data to populate';
+
+  charts.stageDur?.destroy();
+  if (!total) return;
+
+  charts.stageDur = new Chart(ctx, {
+    type:'bar',
+    data:{labels,datasets:[{
+      label:'Avg Days',data:values,
+      backgroundColor:[C.purple,C.blue,C.green,C.amber,C.red],borderRadius:4,
+    }]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.raw!=null?` ${c.raw} days avg`:' No data yet'}}},
+      scales:{
+        x:{...baseScales.x,ticks:{...baseScales.x.ticks,callback:v=>v+'d'}},
+        y:baseScales.y,
+      }},
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+//  PANELS
+// ════════════════════════════════════════════════════════════════
+function buildVelocityActualPanel() {
+  const v = activeOppMetrics().velocity;
+  const total = v.wonCount + v.lostCount;
+  document.getElementById('velocityActualSub').textContent = total
+    ? `From ${total} closed deals · Win rate and cycle time are actual`
+    : 'Load live data to see actual velocity';
+
+  const rows = [
+    {l:'Open Opportunities',     v:fmt.num(v.totalOpenOpps),              c:''},
+    {l:'Open Pipeline ARR',      v:fmt.usd(v.openPipeARR),               c:'c-purple'},
+    {l:'Actual Win Rate',        v:total ? fmt.pct(v.winRate) : '—',      c:v.winRate>=20?'c-green':'c-amber'},
+    {l:'Avg Deal ARR',           v:fmt.usd(v.avgDealARR),                 c:''},
+    {l:'Avg Sales Cycle',        v:v.avgCycleDays ? v.avgCycleDays+'d' : '—', c:''},
+    {l:'──',v:'──',c:''},
+    {l:'Closed Won (all-time)',  v:total ? `${v.wonCount} · ${fmt.usd(v.wonARR)}` : '—', c:'c-green'},
+    {l:'Velocity (monthly)',     v:v.velocityMonthly ? fmt.usd(v.velocityMonthly) : '—', c:'c-amber'},
+  ];
+
+  document.getElementById('velocityActualPanel').innerHTML =
+    rows.map(r=>`<div class="metric-row"><span class="metric-lbl">${r.l}</span><span class="metric-val ${r.c}">${r.v}</span></div>`).join('');
+}
+
+function buildHealthSummaryPanel() {
+  const customers = D.accounts.customers || [];
+  document.getElementById('velocitySub').textContent = customers.length
+    ? `${customers.length} customers · IB ARR by health score`
+    : 'Load live account data';
+
+  if (!customers.length) {
+    document.getElementById('velocityPanel').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center;">No account data yet</div>';
+    return;
+  }
+
+  const hMap = {};
+  for (const c of customers) {
+    const h = c.health || 'Unknown';
+    if (!hMap[h]) hMap[h] = { count: 0, arr: 0 };
+    hMap[h].count++;
+    hMap[h].arr += c.arr;
+  }
+
+  const rows = Object.entries(hMap)
+    .sort((a,b) => b[1].arr - a[1].arr)
+    .map(([h, v]) => ({ l: h, v: `${v.count} · ${fmt.usd(v.arr)}`, c: sentimentClass(h) }));
+
+  document.getElementById('velocityPanel').innerHTML =
+    rows.map(r=>`<div class="metric-row"><span class="metric-lbl">${r.l}</span><span class="metric-val ${r.c}">${r.v}</span></div>`).join('');
+}
+
+function buildExpansionPanel() {
+  const customers = D.accounts.customers || [];
+  if (!customers.length) {
+    document.getElementById('renewalPanel').innerHTML =
+      '<div style="color:var(--muted);font-size:12px;padding:20px 0;text-align:center;">No account data yet</div>';
+    return;
+  }
+
+  const eMap = {};
+  for (const c of customers) {
+    const e = c.expansion || 'None Today';
+    if (!eMap[e]) eMap[e] = { count: 0, arr: 0 };
+    eMap[e].count++;
+    eMap[e].arr += c.arr;
+  }
+
+  const rows = Object.entries(eMap)
+    .sort((a,b) => b[1].arr - a[1].arr)
+    .map(([e, v]) => ({
+      l: e,
+      v: `${v.count} accts · ${fmt.usd(v.arr)}`,
+      c: e === 'None Today' ? '' : 'c-green',
+    }));
+
+  document.getElementById('renewalPanel').innerHTML =
+    rows.map(r=>`<div class="metric-row"><span class="metric-lbl">${r.l}</span><span class="metric-val ${r.c}">${r.v}</span></div>`).join('');
+}
+
+function buildRenewalTable() {
+  const ibARR  = D.accounts.totalIbARR || 1;
+  const rows   = calFilter();
+  const qLabel = selectedQ !== null ? QUARTERS[selectedQ] : null;
+  document.getElementById('renewalSub').textContent = qLabel
+    ? `${qLabel} renewals · Accounts by renewal month`
+    : `Accounts by renewal month · ${rows.length} months with upcoming renewals`;
+  if (!rows.length) {
+    document.getElementById('renewalBody').innerHTML=`<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted);">No renewals in ${qLabel}</td></tr>`;
+    return;
+  }
+  document.getElementById('renewalBody').innerHTML = rows.map(row => {
+    const pct=(row.arr/ibARR*100);
+    const pc=pct>7?'pill-red':pct>4?'pill-amber':'pill-green';
+    return `<tr>
+      <td style="font-weight:600">${row.m}</td><td>${row.n}</td>
+      <td>${fmt.usd(row.arr)}</td>
+      <td style="font-weight:600">${fmt.usd(row.cum)}</td>
+      <td><span class="pill ${pc}">${pct.toFixed(1)}%</span></td>
+      <td style="color:var(--muted);font-size:11px">${row.top}</td>
+    </tr>`;
+  }).join('');
+}
+
+// Convert Statisfy/health text value → CSS class
+function sentimentClass(v) {
+  if (!v) return 'c-muted';
+  const lv = v.toLowerCase();
+  if (lv.includes('very positive'))    return 'c-green';
+  if (lv.includes('positive'))         return 'c-green';
+  if (lv.includes('slightly positive'))return 'c-blue';
+  if (lv.includes('neutral'))          return 'c-muted';
+  if (lv.includes('slightly negative'))return 'c-amber';
+  if (lv.includes('negative'))         return 'c-red';
+  return 'c-muted';
+}
+
+function healthPill(v) {
+  if (!v) return '<span style="color:var(--muted)">—</span>';
+  const cls = sentimentClass(v);
+  const pillCls = cls === 'c-green' ? 'pill-green'
+                : cls === 'c-blue'  ? 'pill-blue'
+                : cls === 'c-amber' ? 'pill-amber'
+                : cls === 'c-red'   ? 'pill-red'
+                : 'pill-blue';
+  // Shorten label
+  const short = v.replace('Very Positive','Very +').replace('Slightly Positive','Slight +')
+                 .replace('Very Negative','Very −').replace('Slightly Negative','Slight −')
+                 .replace('Positive','+').replace('Negative','−');
+  return `<span class="pill ${pillCls}" title="${v}">${short}</span>`;
+}
+
+function expansionPill(v, desc) {
+  if (!v || v === 'None Today') return `<span style="color:var(--muted);font-size:11px">None Today</span>`;
+  const cls = v.toLowerCase().includes('upsell') ? 'pill-green'
+            : v.toLowerCase().includes('cross')  ? 'pill-purple'
+            : v.toLowerCase().includes('usage')  ? 'pill-blue'
+            : 'pill-amber';
+  const title = desc ? desc.substring(0,200) : v;
+  return `<span class="pill ${cls}" title="${title}" style="cursor:default">${v}</span>`;
+}
+
+function buildAccountsTable() {
+  const allCustomers = D.accounts.customers;
+  if (!allCustomers.length) {
+    document.getElementById('accountsSub').textContent = 'Refresh from Sheets to load live account data';
+    document.getElementById('accountsBody').innerHTML =
+      '<tr><td colspan="10" style="text-align:center;padding:32px;color:var(--muted);">Click ↻ Refresh from Sheets to load customer accounts</td></tr>';
+    return;
+  }
+
+  // Filter by rep if one is selected (requires Owner.Name in Account SOQL)
+  const hasOwners = allCustomers.some(c => c.ownerName);
+  const customers = selectedRep && hasOwners
+    ? allCustomers.filter(c => c.ownerName === selectedRep)
+    : allCustomers;
+  const ibARR = customers.reduce((s,c) => s + c.arr, 0) || 1;
+
+  const months = selectedQ !== null ? (QUARTER_MONTHS[selectedQ]||[]) : null;
+  const repNote = selectedRep ? ` · ${selectedRep}'s accounts` : '';
+  document.getElementById('accountsSub').textContent =
+    `${customers.length} customer${customers.length !== 1 ? 's' : ''} · IB ARR: ${fmt.usd(ibARR)}${repNote}` +
+    (months ? ` · ${QUARTERS[selectedQ]} renewals highlighted` : '');
+
+  document.getElementById('accountsBody').innerHTML = customers.map((c,i) => {
+    const pctIB     = ibARR > 0 ? (c.arr/ibARR*100).toFixed(1) : '?';
+    const isRenewing = months && c.renewal && months.includes(c.renewal);
+    const rowStyle  = months && !isRenewing ? 'opacity:0.35;' : '';
+    const renewCell = isRenewing
+      ? `<span class="pill pill-amber">${c.renewal}</span>`
+      : `<span style="color:var(--muted)">${c.renewal||'—'}</span>`;
+
+    // Usage: active users / licensed users
+    const usageStr = (c.activeUsers || c.usersLic)
+      ? `<span style="font-weight:600">${fmt.num(c.activeUsers)||'—'}</span><span style="color:var(--muted);font-size:10px"> / ${fmt.num(c.usersLic)||'—'}</span>`
+      : '<span style="color:var(--muted)">—</span>';
+
+    // Risk signal: prefer explicit risk reason, fall back to Statisfy risk score
+    const riskStr = c.riskReason
+      ? `<span style="color:var(--amber);font-size:11px" title="${c.riskReason}">${c.riskReason.substring(0,30)}${c.riskReason.length>30?'…':''}</span>`
+      : c.stRisk
+        ? `<span class="${sentimentClass(c.stRisk)}" style="font-size:11px">${c.stRisk}</span>`
+        : '<span style="color:var(--muted)">—</span>';
+
+    return `<tr style="${rowStyle}">
+      <td style="color:var(--muted)">${i+1}</td>
+      <td>
+        <div style="font-weight:600">${c.name}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px">${c.industry||''}</div>
+      </td>
+      <td><span style="font-weight:700;color:var(--accent-light)">${fmt.usd(c.arr)}</span></td>
+      <td style="color:var(--muted);font-size:11px">${pctIB}%</td>
+      <td style="color:var(--muted)">${c.segment||'—'}</td>
+      <td>${renewCell}</td>
+      <td>${healthPill(c.health)}</td>
+      <td>${expansionPill(c.expansion, c.expansionDesc)}</td>
+      <td style="font-size:12px">${usageStr}</td>
+      <td>${riskStr}</td>
+    </tr>`;
+  }).join('');
+}
+
+function buildRepLeaderboard() {
+  const reps = D.oppMetrics.reps || [];
+  const rb   = D.oppMetrics.repBreakdown || {};
+
+  if (!reps.length) {
+    document.getElementById('mktgTable').innerHTML =
+      '<tr><td colspan="6" style="padding:24px;text-align:center;color:var(--muted);">Load live data to see rep performance</td></tr>';
+    return;
+  }
+
+  const repRows = reps.map(rep => {
+    const v = (rb[rep] || {}).velocity || {};
+    return { rep, openPipe: v.openPipeARR||0, openOpps: v.totalOpenOpps||0, wonARR: v.wonARR||0, wonCount: v.wonCount||0, winRate: v.winRate||0 };
+  }).sort((a,b) => b.openPipe - a.openPipe);
+
+  const head = `<thead><tr>
+    <th>Rep</th>
+    <th style="text-align:right">Open Pipeline</th>
+    <th style="text-align:right">Open Opps</th>
+    <th style="text-align:right">Won ARR</th>
+    <th style="text-align:right">Won Deals</th>
+    <th style="text-align:right">Win Rate</th>
+  </tr></thead>`;
+  const body = `<tbody>${repRows.map(r => `<tr>
+    <td style="font-weight:600">${r.rep}</td>
+    <td style="text-align:right;color:var(--accent-light)">${fmt.usd(r.openPipe)}</td>
+    <td style="text-align:right">${fmt.num(r.openOpps)}</td>
+    <td style="text-align:right;color:var(--green)">${r.wonARR ? fmt.usd(r.wonARR) : '—'}</td>
+    <td style="text-align:right">${r.wonCount || '—'}</td>
+    <td style="text-align:right" class="${r.winRate>=20?'c-green':r.winRate>0?'c-amber':''}">${r.winRate ? fmt.pct(r.winRate) : '—'}</td>
+  </tr>`).join('')}</tbody>`;
+  document.getElementById('mktgTable').innerHTML = head + body;
+}
+
+function buildSegmentPipelineTable() {
+  const bySegment = D.oppMetrics.bySegment || {};
+  const entries   = Object.entries(bySegment).sort((a,b) => b[1].openARR - a[1].openARR);
+
+  if (!entries.length) {
+    document.getElementById('salesTable').innerHTML =
+      '<tr><td colspan="5" style="padding:24px;text-align:center;color:var(--muted);">Load live data to see pipeline by segment</td></tr>';
+    return;
+  }
+
+  const head = `<thead><tr>
+    <th>Segment</th>
+    <th style="text-align:right">Open Pipeline</th>
+    <th style="text-align:right">Open Opps</th>
+    <th style="text-align:right">Won ARR</th>
+    <th style="text-align:right">Won Deals</th>
+  </tr></thead>`;
+  const body = `<tbody>${entries.map(([seg, v]) => `<tr>
+    <td style="font-weight:600">${seg}</td>
+    <td style="text-align:right;color:var(--accent-light)">${fmt.usd(v.openARR)}</td>
+    <td style="text-align:right">${fmt.num(v.openCount)}</td>
+    <td style="text-align:right;color:var(--green)">${v.wonARR ? fmt.usd(v.wonARR) : '—'}</td>
+    <td style="text-align:right">${v.wonCount || '—'}</td>
+  </tr>`).join('')}</tbody>`;
+  document.getElementById('salesTable').innerHTML = head + body;
+}
+
+function buildPartnerTable() {
+  const byPartner = D.oppMetrics.byPartner || {};
+  const tbl       = document.getElementById('partnerTable');
+
+  // Apply partner slicer filter if one is selected
+  let entries = Object.entries(byPartner)
+    .sort((a, b) => (b[1].openARR + b[1].wonARR) - (a[1].openARR + a[1].wonARR));
+
+  if (selectedPartner) {
+    entries = entries.filter(([name]) => name === selectedPartner);
+  }
+
+  if (!entries.length) {
+    document.getElementById('partnerSub').textContent =
+      Object.keys(byPartner).length
+        ? `Filtered to ${selectedPartner} · 0 matches`
+        : 'No partner data yet · Complete the setup guide on the right, then refresh';
+    tbl.innerHTML = '<tr><td colspan="8" style="padding:28px;text-align:center;color:var(--muted);">Set up the Partners tab or add Partner_Account__c to your Opportunity SOQL, then click ↻ Refresh</td></tr>';
+    return;
+  }
+
+  const totalOpenARR = entries.reduce((s, [,v]) => s + v.openARR, 0);
+  const totalWonARR  = entries.reduce((s, [,v]) => s + v.wonARR,  0);
+  document.getElementById('partnerSub').textContent =
+    `${entries.length} partner${entries.length > 1 ? 's' : ''} · ${fmt.usd(totalOpenARR)} open pipeline · ${fmt.usd(totalWonARR)} won ARR`;
+
+  const typeColors = {
+    'referral':  'pill-green',
+    'co-sell':   'pill-purple',
+    'reseller':  'pill-blue',
+    'channel':   'pill-blue',
+    'isv':       'pill-amber',
+    'technology':'pill-amber',
+  };
+  const typePill = (t) => {
+    if (!t) return '<span style="color:var(--muted);font-size:11px">—</span>';
+    const cls = typeColors[t.toLowerCase()] ||
+                Object.entries(typeColors).find(([k]) => t.toLowerCase().includes(k))?.[1] ||
+                'pill-blue';
+    return `<span class="pill ${cls}">${t}</span>`;
+  };
+
+  const head = `<thead><tr>
+    <th>Partner</th>
+    <th>Type</th>
+    <th style="text-align:right">Open Pipeline</th>
+    <th style="text-align:right">Open Deals</th>
+    <th style="text-align:right">Won ARR</th>
+    <th style="text-align:right">Won Deals</th>
+    <th style="text-align:right">Win Rate</th>
+    <th>Reps Involved</th>
+  </tr></thead>`;
+
+  const body = `<tbody>${entries.map(([name, p]) => `<tr>
+    <td style="font-weight:600">${name}</td>
+    <td>${typePill(p.type)}</td>
+    <td style="text-align:right;color:var(--accent-light)">${p.openARR ? fmt.usd(p.openARR) : '—'}</td>
+    <td style="text-align:right">${p.openCount || '—'}</td>
+    <td style="text-align:right;color:var(--green)">${p.wonARR ? fmt.usd(p.wonARR) : '—'}</td>
+    <td style="text-align:right">${p.wonCount || '—'}</td>
+    <td style="text-align:right" class="${p.winRate >= 30 ? 'c-green' : p.winRate > 0 ? 'c-amber' : ''}">${p.winRate ? fmt.pct(p.winRate) : '—'}</td>
+    <td style="font-size:11px;color:var(--muted)">${(p.reps||[]).join(', ') || '—'}</td>
+  </tr>`).join('')}</tbody>`;
+
+  tbl.innerHTML = head + body;
+}
+
+// ════════════════════════════════════════════════════════════════
+//  LIVE DATA — JSONP
+// ════════════════════════════════════════════════════════════════
+function loadFromSheets() {
+  return new Promise((resolve, reject) => {
+    const cbName = '__cerbyDash' + Date.now();
+    const tag    = document.createElement('script');
+    const timer  = setTimeout(() => { cleanup(); reject(new Error('Timeout after 20s')); }, 20000);
+    function cleanup() { clearTimeout(timer); delete window[cbName]; tag.parentNode?.removeChild(tag); }
+    window[cbName] = (json) => { cleanup(); resolve(json); };
+    tag.onerror    = ()     => { cleanup(); reject(new Error('Script load failed')); };
+    tag.src = SCRIPT_URL + '?callback=' + cbName;
+    document.head.appendChild(tag);
+  });
+}
+
+function setBadge(state) {
+  const badge = document.getElementById('dataBadge');
+  const states = {
+    live:   {dot:'dot-live',  text:'Live from Sheets'},
+    cached: {dot:'dot-cached',text:'Cached data'},
+    loading:{dot:'dot-cached',text:'Fetching…'},
+    error:  {dot:'dot-error', text:'Fetch failed'},
+  };
+  const s = states[state] || states.cached;
+  badge.innerHTML = `<span class="status-dot ${s.dot}"></span>${s.text}`;
+}
+
+async function refreshFromSheets() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true; btn.textContent = '↻ Fetching…'; setBadge('loading');
+
+  try {
+    const json = await loadFromSheets();
+
+    const hasOppData = json.oppMetrics && (
+      (json.oppMetrics.pipeByQ?.length > 0) ||
+      (json.oppMetrics.funnel?.s2 > 0) ||
+      (json.oppMetrics.velocity?.totalOpenOpps > 0)
+    );
+    if (hasOppData) D.oppMetrics = json.oppMetrics;
+    if (json.accounts?.customers?.length > 0) D.accounts = json.accounts;
+    if (json.products?.byProduct?.length > 0) D.products = json.products;
+
+    // Reset rep/partner selections if no longer in the new data
+    if (selectedRep     && !(D.oppMetrics.reps     || []).includes(selectedRep))     selectedRep     = null;
+    if (selectedPartner && !(D.oppMetrics.partners || []).includes(selectedPartner)) selectedPartner = null;
+
+    buildRepSlicer();
+    buildPartnerSlicer();
+    initAll();
+    setBadge('live');
+    const ts = json.lastUpdated ? new Date(json.lastUpdated).toLocaleString() : new Date().toLocaleString();
+
+    const missingKeys = [];
+    if (!hasOppData) missingKeys.push('Opportunity data');
+    if (!json.accounts?.customers?.length) missingKeys.push('Account data');
+    if (!json.products?.byProduct?.length) missingKeys.push('Product data (optional)');
+    document.getElementById('headerSub').textContent = missingKeys.length
+      ? `Live (partial) · ${ts} · Missing: ${missingKeys.join(', ')}`
+      : 'Live · Last synced ' + ts + ' · Salesforce via Google Sheets';
+    document.getElementById('footer').innerHTML = `Data sourced from <strong>AGENT_DATA_SFDC_SALES</strong> · Live sync via Apps Script · Updated ${ts}`;
+
+  } catch (err) {
+    setBadge('error');
+    // Distinguish timeout vs auth vs script error
+    const hint = err.message.includes('Timeout') ? 'Script timed out — check Apps Script logs'
+               : err.message.includes('Script load failed') ? 'Auth error — open the URL below in Chrome while signed into Cerby, then retry'
+               : err.message;
+    document.getElementById('headerSub').textContent = 'Fetch failed · ' + hint;
+    document.getElementById('footer').innerHTML =
+      `<span style="color:var(--amber)">Debug: open this URL in Chrome while signed into Cerby → </span>` +
+      `<a href="${SCRIPT_URL}" target="_blank" style="color:var(--accent-light)">${SCRIPT_URL.slice(0,80)}…</a>`;
+    console.error('Dashboard fetch error:', err);
+  } finally {
+    btn.disabled = false; btn.textContent = '↻ Refresh from Sheets';
+  }
+}
+
+function mergeDeep(target, source) {
+  for (const key of Object.keys(source)) {
+    if (source[key] !== null && source[key] !== undefined) target[key] = source[key];
+  }
+}
+
+// ════════════════════════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════════════════════════
+function initAll() {
+  buildKPIRow();
+  buildPipelineChart();
+  buildRenewalExposureChart();
+  buildPipeQChart();
+  buildWonQChart();
+  buildWonVsPipelineChart();
+  buildPipelineTypeChart();
+  buildFunnelChart();
+  buildVelocityActualPanel();
+  buildStageDurChart();
+  buildHealthSummaryPanel();
+  buildSegmentARRChart();
+  buildExpansionPanel();
+  buildRenewalTable();
+  buildAccountsTable();
+  buildRepLeaderboard();
+  buildSegmentPipelineTable();
+  buildProductMixChart();
+  buildPartnerTable();
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  initAll();
+  setBadge('loading');
+  document.getElementById('headerSub').textContent = 'Connecting to Google Sheets…';
+  refreshFromSheets();
+});
+</script>
+</body>
+</html>
