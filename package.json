@@ -1,0 +1,28 @@
+{
+  "name": "bdr-dashboard",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "server": "node --max-old-space-size=4096 server/index.mjs"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.8.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^6.0.2",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1",
+    "jsforce": "^3.6.3",
+    "vite": "^8.0.14"
+  },
+  "overrides": {
+    "uuid": "^14.0.0"
+  }
+}
