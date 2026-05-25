@@ -16,11 +16,10 @@
     "recharts": "^3.8.1"
   },
   "devDependencies": {
-    "@vitejs/plugin-react": "^4.3.4",
+    "@vitejs/plugin-react": "^6.0.2",
     "dotenv": "^16.4.5",
     "express": "^4.21.1",
     "jsforce": "^3.6.3",
-    "vite": "^5.4.10",
-    "xlsx": "^0.18.5"
+    "vite": "^8.0.14"
   }
 }

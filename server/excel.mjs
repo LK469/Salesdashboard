@@ -1,11 +1,10 @@
-import * as XLSX from "xlsx";
+import ExcelJS from "exceljs";
 import fs from "node:fs";
 import path from "node:path";
 
 // Header -> alias map. The lookup is normalized (lowercase, alphanumeric only)
 // so "BDR Name", "BDR_Name__c", and "bdrname" all collapse to "bdrname".
 const HEADER_ALIASES = {
-  // Core
   id: "id",
   oppid: "id",
   oppid18digits: "id",
@@ -50,7 +49,6 @@ const HEADER_ALIASES = {
   won: "isWon",
   isclosed: "isClosed",
 
-  // BDR / sourcing
   bdrname: "bdrName",
   bdr: "bdrName",
   bdrsourced: "bdrSourced",
@@ -59,7 +57,6 @@ const HEADER_ALIASES = {
   teamtype: "teamType",
   fullcycleopp: "fullCycleOpp",
 
-  // Discovery
   discoverystatus: "discoveryStatus",
   discostatus: "discoveryStatus",
   discoveryscheduledtime: "discoveryScheduledTime",
@@ -83,7 +80,6 @@ const HEADER_ALIASES = {
   discoveryaicoachinglink: "discoveryAiCoachingLink",
   discoveryairecordinglink: "discoveryAiRecordingLink",
 
-  // Demo
   demostatus: "demoStatus",
   demoscheduledtime: "demoScheduledTime",
   demoscheduled: "demoScheduledFlag",
@@ -98,7 +94,6 @@ const HEADER_ALIASES = {
   demoaicoachingperformancescore: "demoAiCoachingScore",
   demoaicoachinglink: "demoAiCoachingLink",
 
-  // Outcome / size
   numberofpaidlocations: "paidLocations",
   paidlocations: "paidLocations",
   locations: "paidLocations",
@@ -109,7 +104,6 @@ const HEADER_ALIASES = {
   reasonlost: "lossReason",
   closedlostsubreason: "lossSubReason",
 
-  // Revenue
   mrr: "mrr",
   mrramount: "mrr",
   arr: "arr",
@@ -117,18 +111,47 @@ const HEADER_ALIASES = {
   acv: "acv",
   acvamount: "acv",
 
-  // Misc
   inboundoroutbound: "inboundOrOutbound",
   nextstep: "nextStep",
   type: "type",
+};
+
+const ACTIVITY_HEADER_ALIASES = {
+  assigned: "bdrName",
+  assignedrole: "assignedRole",
+  assignedroledisplay: "assignedRoleDisplay",
+  createddate: "createdDate",
+  date: "date",
+  completeddatetime: "completedDate",
+  subject: "subject",
+  description: "description",
+  callobjectidentifier: "callObjectId",
+  durationminutes: "durationMinutes",
+  durationmin: "durationMinutes",
+  duration: "durationMinutes",
+  meetingtype: "meetingType",
+  companyaccount: "accountName",
+  account: "accountName",
+  opportunity: "opportunityName",
+  contact: "contactName",
+  lead: "leadName",
+  priority: "priority",
+  status: "status",
+  task: "isTask",
+  calldispose: "callDispose",
+  createdby: "createdBy",
+  activitytype: "activityType",
+  routername: "routerName",
+  tasksubtype: "taskSubtype",
+  calltype: "callType",
+  activityid: "id",
 };
 
 function normalize(h) {
   return String(h ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
 }
 
-// Cells with literal "-" / "" / dash values represent missing data in the BDR export.
-const NULL_TOKENS = new Set(["-", "—", "–", "", "n/a", "na", "null", "none"]);
+const NULL_TOKENS = new Set(["-", "", "n/a", "na", "null", "none"]);
 function isNullish(v) {
   if (v == null) return true;
   if (typeof v === "string") return NULL_TOKENS.has(v.trim().toLowerCase());
@@ -137,6 +160,51 @@ function isNullish(v) {
 
 const TRUTHY = new Set(["true", "yes", "y", "1", "x", "checked"]);
 const FALSY = new Set(["false", "no", "n", "0", ""]);
+
+function coerceBool(v) {
+  if (typeof v === "boolean") return v;
+  if (typeof v === "number") return v !== 0;
+  const s = String(v).trim().toLowerCase();
+  if (TRUTHY.has(s)) return true;
+  if (FALSY.has(s)) return false;
+  return null;
+}
+
+function cellValue(cell) {
+  if (!cell) return null;
+  let value = cell.value;
+  if (value == null) return null;
+  if (value instanceof Date) return value;
+  if (typeof value === "object") {
+    if (value.result != null) value = value.result;
+    else if (value.text != null) value = value.text;
+    else if (Array.isArray(value.richText)) value = value.richText.map((p) => p.text || "").join("");
+    else if (value.hyperlink && value.text) value = value.text;
+  }
+  return value;
+}
+
+function parseDate(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
+  if (typeof v === "number") {
+    const ms = Math.round((v - 25569) * 86400 * 1000);
+    return new Date(ms).toISOString().slice(0, 10);
+  }
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
+}
+
+function parseDateTime(v) {
+  if (v == null) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
+  if (typeof v === "number") {
+    const ms = Math.round((v - 25569) * 86400 * 1000);
+    return new Date(ms).toISOString();
+  }
+  const d = new Date(v);
+  return isNaN(d.getTime()) ? String(v) : d.toISOString();
+}
 
 function coerce(alias, value) {
   if (isNullish(value)) return null;
@@ -180,39 +248,6 @@ function coerce(alias, value) {
   }
 }
 
-function coerceBool(v) {
-  if (typeof v === "boolean") return v;
-  if (typeof v === "number") return v !== 0;
-  const s = String(v).trim().toLowerCase();
-  if (TRUTHY.has(s)) return true;
-  if (FALSY.has(s)) return false;
-  return null;
-}
-
-function parseDate(v) {
-  if (v == null) return null;
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString().slice(0, 10);
-  if (typeof v === "number") {
-    // Excel serial date (days since 1899-12-30, with 1900 leap-year quirk)
-    const ms = Math.round((v - 25569) * 86400 * 1000);
-    return new Date(ms).toISOString().slice(0, 10);
-  }
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? String(v) : d.toISOString().slice(0, 10);
-}
-
-function parseDateTime(v) {
-  if (v == null) return null;
-  if (v instanceof Date) return isNaN(v.getTime()) ? null : v.toISOString();
-  if (typeof v === "number") {
-    const ms = Math.round((v - 25569) * 86400 * 1000);
-    return new Date(ms).toISOString();
-  }
-  // Handle BDR export format: "9/19/2025, 9:00 AM"
-  const d = new Date(v);
-  return isNaN(d.getTime()) ? String(v) : d.toISOString();
-}
-
 const STAGE_PROBABILITY = {
   "Discovery Scheduled": 10,
   "Discovery Completed": 25,
@@ -225,22 +260,14 @@ const STAGE_PROBABILITY = {
 };
 
 function deriveDealDefaults(row) {
-  // Derive booleans from stage if the source didn't include explicit flags.
   if (row.isWon == null) row.isWon = /closed[\s_]*won/i.test(row.stage || "");
   if (row.isClosed == null) row.isClosed = /closed/i.test(row.stage || "");
   if (row.probability == null && row.stage) row.probability = STAGE_PROBABILITY[row.stage] ?? null;
-
-  // Map Team / Team Type into our canonical flags.
-  if (row.fullCycleOpp == null && row.team) {
-    row.fullCycleOpp = /full.cycle/i.test(row.team);
-  }
+  if (row.fullCycleOpp == null && row.team) row.fullCycleOpp = /full.cycle/i.test(row.team);
   if (row.inboundOrOutbound == null && row.teamType) {
     if (/inbound/i.test(row.teamType)) row.inboundOrOutbound = "Inbound";
     else if (/outbound/i.test(row.teamType)) row.inboundOrOutbound = "Outbound";
   }
-
-  // Gamification: derive points from per-meeting flags when explicit field missing.
-  // Rule of thumb: 6 pts per discovery completed, 5 pts per demo completed, 10 pts per won.
   if (row.gamificationPoints == null) {
     let pts = 0;
     if (row.discoveryCompletedFlag) pts += 6;
@@ -248,43 +275,63 @@ function deriveDealDefaults(row) {
     if (row.isWon) pts += row.fullCycleOpp ? 7 : 10;
     row.gamificationPoints = pts;
   }
-
-  // ARR/ACV derivation only if we have explicit MRR or Amount.
   if (row.arr == null && row.mrr != null) row.arr = row.mrr * 12;
   if (row.mrr == null && row.amount != null) row.mrr = Math.round(row.amount / 12);
-
   return row;
 }
 
-function pickSheet(workbook, preferredName) {
-  if (preferredName && workbook.SheetNames.includes(preferredName)) return preferredName;
-  // Prefer sheets that look like deals data, with the largest row count.
-  const candidates = workbook.SheetNames
-    .map((n) => {
-      const ws = workbook.Sheets[n];
-      if (!ws || !ws["!ref"]) return null;
-      const rows = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
-      return { name: n, rows: rows.length, score: /deal|opportunit|pipeline|bdr|meeting/i.test(n) ? 1 : 0 };
-    })
-    .filter(Boolean)
-    .sort((a, b) => b.score - a.score || b.rows - a.rows);
-  return candidates[0]?.name || workbook.SheetNames[0];
+async function workbookFromBuffer(buffer) {
+  const wb = new ExcelJS.Workbook();
+  await wb.xlsx.load(buffer);
+  return wb;
 }
 
-export function readDealsFromBuffer(buffer, { sheetName } = {}) {
-  const wb = XLSX.read(buffer, { cellDates: true });
+function pickSheet(workbook, preferredName, fallbackRe = /deal|opportunit|pipeline|bdr|meeting/i) {
+  if (preferredName) {
+    const preferred = workbook.worksheets.find((ws) => ws.name === preferredName);
+    if (preferred) return preferred;
+  }
+  const candidates = workbook.worksheets
+    .filter((ws) => ws.actualRowCount > 0)
+    .sort((a, b) => (fallbackRe.test(b.name) ? 1 : 0) - (fallbackRe.test(a.name) ? 1 : 0) || b.actualRowCount - a.actualRowCount);
+  return candidates[0] || workbook.worksheets[0];
+}
+
+function rowsFromWorksheet(ws) {
+  if (!ws || ws.actualRowCount === 0) return [];
+  const headers = [];
+  ws.getRow(1).eachCell({ includeEmpty: true }, (cell, colNumber) => {
+    headers[colNumber] = cellValue(cell);
+  });
+
+  const rows = [];
+  for (let rowNumber = 2; rowNumber <= ws.rowCount; rowNumber++) {
+    const row = ws.getRow(rowNumber);
+    if (!row.hasValues) continue;
+    const out = {};
+    for (let col = 1; col < headers.length; col++) {
+      const header = headers[col];
+      if (header == null || header === "") continue;
+      out[header] = cellValue(row.getCell(col));
+    }
+    rows.push(out);
+  }
+  return rows;
+}
+
+export async function readDealsFromBuffer(buffer, { sheetName } = {}) {
+  const wb = await workbookFromBuffer(buffer);
   const sheet = pickSheet(wb, sheetName);
-  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheet], { defval: null, raw: true });
-  return parseDeals(raw, sheet, wb.SheetNames);
+  const raw = rowsFromWorksheet(sheet);
+  return parseDeals(raw, sheet?.name, wb.worksheets.map((ws) => ws.name));
 }
 
-export function readDealsFromFile(filePath, opts = {}) {
+export async function readDealsFromFile(filePath, opts = {}) {
   const resolved = path.resolve(filePath);
   if (!fs.existsSync(resolved)) {
     throw new Error(`Excel file not found: ${resolved}`);
   }
-  const buffer = fs.readFileSync(resolved);
-  return readDealsFromBuffer(buffer, opts);
+  return readDealsFromBuffer(fs.readFileSync(resolved), opts);
 }
 
 function parseDeals(raw, sheetName, allSheets) {
@@ -304,7 +351,6 @@ function parseDeals(raw, sheetName, allSheets) {
     const out = {};
     for (const [rawHeader, alias] of Object.entries(headerMap)) {
       const v = coerce(alias, row[rawHeader]);
-      // Don't let a later column overwrite a populated alias with null.
       if (v != null || out[alias] == null) out[alias] = v;
     }
     if (!out.id) out.id = `xlsx_${String(i + 1).padStart(6, "0")}`;
@@ -314,72 +360,20 @@ function parseDeals(raw, sheetName, allSheets) {
   return { deals, headerMap, unmappedHeaders, sheetName, allSheets };
 }
 
-// =============================================================================
-// Activities (Calls / Emails / Conversations)
-// =============================================================================
-// Reads the "Calls report" sheet from BDR data sheet.xlsx (or whatever's
-// configured). Excludes any task whose subject contains "[Outreach] [Call]"
-// (case-insensitive). Conversations = calls whose duration >= 3 minutes.
-//
-// Starting March 2026, the duration may be embedded in the Subject or
-// Description rather than the Duration field, so we also try to parse
-// patterns like "5 min", "12:34 mins", "00:04:32" from the text fields.
-// =============================================================================
-
-const ACTIVITY_HEADER_ALIASES = {
-  assigned: "bdrName",
-  assignedrole: "assignedRole",
-  assignedroledisplay: "assignedRoleDisplay",
-  createddate: "createdDate",
-  date: "date",
-  completeddatetime: "completedDate",
-  subject: "subject",
-  description: "description",
-  callobjectidentifier: "callObjectId",
-  durationminutes: "durationMinutes",
-  durationmin: "durationMinutes",
-  duration: "durationMinutes",
-  meetingtype: "meetingType",
-  companyaccount: "accountName",
-  account: "accountName",
-  opportunity: "opportunityName",
-  contact: "contactName",
-  lead: "leadName",
-  priority: "priority",
-  status: "status",
-  task: "isTask",
-  calldispose: "callDispose",
-  createdby: "createdBy",
-  activitytype: "activityType",
-  routername: "routerName",
-  tasksubtype: "taskSubtype",
-  calltype: "callType",
-  activityid: "id",
-};
-
 const OUTREACH_RE = /\[outreach\][\s_-]*\[call\]/i;
 
-// Parse a duration-ish string out of subject/description for the new
-// post-March-2026 convention. Returns minutes (number) or null.
 function parseDurationFromText(text) {
   if (!text) return null;
   const s = String(text);
-  // hh:mm:ss -> minutes
   const hms = s.match(/(\d{1,2}):(\d{2}):(\d{2})/);
-  if (hms) {
-    const h = +hms[1], m = +hms[2], sec = +hms[3];
-    return h * 60 + m + sec / 60;
-  }
-  // mm:ss
+  if (hms) return +hms[1] * 60 + +hms[2] + +hms[3] / 60;
   const ms = s.match(/(?<!\d)(\d{1,3}):(\d{2})(?!:)/);
   if (ms) {
     const m = +ms[1], sec = +ms[2];
     if (m < 1000) return m + sec / 60;
   }
-  // "5 min", "5min", "5m"
   const min = s.match(/(\d+(?:\.\d+)?)\s*(?:min|m\b|mins|minutes)/i);
   if (min) return parseFloat(min[1]);
-  // "300 sec", "300 seconds"
   const sec = s.match(/(\d+(?:\.\d+)?)\s*(?:sec|s\b|secs|seconds)/i);
   if (sec) return parseFloat(sec[1]) / 60;
   return null;
@@ -402,16 +396,12 @@ function coerceActivity(alias, value) {
   }
 }
 
-export function readActivitiesFromBuffer(buffer, { sheetName = "Calls report" } = {}) {
-  const wb = XLSX.read(buffer, { cellDates: true });
-  if (!wb.SheetNames.includes(sheetName)) {
-    // Fall back to any sheet that looks like an activities log
-    sheetName = wb.SheetNames.find((n) => /call|activit|task/i.test(n)) || wb.SheetNames[0];
-  }
-  const ws = wb.Sheets[sheetName];
-  if (!ws || !ws["!ref"]) return { activities: [], sheetName, headerMap: {}, unmappedHeaders: [] };
-  const raw = XLSX.utils.sheet_to_json(ws, { defval: null, raw: true });
-  if (!raw.length) return { activities: [], sheetName, headerMap: {}, unmappedHeaders: [] };
+export async function readActivitiesFromBuffer(buffer, { sheetName = "Calls report" } = {}) {
+  const wb = await workbookFromBuffer(buffer);
+  let sheet = wb.worksheets.find((ws) => ws.name === sheetName);
+  if (!sheet) sheet = pickSheet(wb, null, /call|activit|task/i);
+  const raw = rowsFromWorksheet(sheet);
+  if (!raw.length) return { activities: [], sheetName: sheet?.name, headerMap: {}, unmappedHeaders: [] };
 
   const headerMap = {};
   const unmappedHeaders = [];
@@ -428,28 +418,21 @@ export function readActivitiesFromBuffer(buffer, { sheetName = "Calls report" } 
       const v = coerceActivity(alias, raw[i][rawHeader]);
       if (v != null || out[alias] == null) out[alias] = v;
     }
-    // Exclude outreach calls per user spec.
     if (out.subject && OUTREACH_RE.test(out.subject)) continue;
-
-    // Derive duration from subject/description if not provided.
     if (out.durationMinutes == null) {
       out.durationMinutes = parseDurationFromText(out.subject) ?? parseDurationFromText(out.description);
     }
-    // Classify: a "conversation" is any call with duration >= 3 minutes.
     const dur = out.durationMinutes;
     out.isConversation = typeof dur === "number" && dur >= 3;
-
-    // Coarse type -- we only ingest the Calls report here, so default is "call".
     const type = String(out.activityType || out.taskSubtype || "Call").trim().toLowerCase();
     out.activityKind = type.includes("email") ? "email" : "call";
-
     if (!out.id) out.id = `act_${String(i + 1).padStart(7, "0")}`;
     activities.push(out);
   }
-  return { activities, sheetName, headerMap, unmappedHeaders };
+  return { activities, sheetName: sheet?.name, headerMap, unmappedHeaders };
 }
 
-export function readActivitiesFromFile(filePath, opts = {}) {
+export async function readActivitiesFromFile(filePath, opts = {}) {
   const resolved = path.resolve(filePath);
   if (!fs.existsSync(resolved)) {
     throw new Error(`Excel file not found: ${resolved}`);

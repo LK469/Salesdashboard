@@ -17,15 +17,11 @@ function sfClient() {
   return sfClientPromise;
 }
 
-// Cache the workbook for SharePoint reads so we don't refetch on every request.
-// Cleared every CACHE_TTL_MS.
 const CACHE_TTL_MS = 5 * 60 * 1000;
 let workbookCache = null;
-
-// Cache for the streamed Excel file (heavy parse). Invalidated when the file mtime changes.
-let excelDealCache = null; // { mtime, result }
-let excelUserTableCache = null; // { mtime, users }
-let excelTaskCache = null; // { mtime, activities }
+let excelDealCache = null;
+let excelUserTableCache = null;
+let excelTaskCache = null;
 
 async function loadFromSharepoint() {
   const now = Date.now();
@@ -33,7 +29,7 @@ async function loadFromSharepoint() {
     return workbookCache;
   }
   const { buffer, fileName, lastModified } = await downloadWorkbook();
-  const parsed = readDealsFromBuffer(buffer);
+  const parsed = await readDealsFromBuffer(buffer);
   workbookCache = {
     ...parsed,
     fileName,
@@ -52,12 +48,10 @@ async function loadDeals() {
     case "excel": {
       const filePath = process.env.EXCEL_FILE_PATH;
       if (!filePath) throw new Error("EXCEL_FILE_PATH not set");
-      // Use the streaming reader for very large files (e.g. BDR V2.xlsx is 145 MB).
-      // Anything > 20 MB streams; smaller files use the in-memory parser.
+
       const stat = fs.statSync(filePath);
       const sheetName = process.env.EXCEL_SHEET_NAME;
       if (stat.size > 20 * 1024 * 1024) {
-        // Cache the streamed result keyed on file mtime -- invalidates on re-save.
         const mtime = stat.mtimeMs;
         if (excelDealCache && excelDealCache.mtime === mtime) {
           return excelDealCache.result;
@@ -68,11 +62,8 @@ async function loadDeals() {
           sheetName: sheetName || "Opportunity",
           onProgress: (n) => console.log(`[excel]   ${n.toLocaleString()} rows read`),
         });
-        console.log(`[excel] Done in ${((Date.now() - start) / 1000).toFixed(1)}s · ${parsed.deals.length.toLocaleString()} rows · sheet "${parsed.sheetName}" · ${parsed.unmappedHeaders.length} unmapped headers`);
+        console.log(`[excel] Done in ${((Date.now() - start) / 1000).toFixed(1)}s - ${parsed.deals.length.toLocaleString()} rows - sheet "${parsed.sheetName}" - ${parsed.unmappedHeaders.length} unmapped headers`);
 
-        // Primary BDR name resolution: read the User sheet from the SAME workbook
-        // (BDR V2.xlsx ships a Data Cloud-shaped User table) and translate
-        // BDR_Name__c lookup IDs to FullName via that table.
         let userTable = new Map();
         try {
           if (excelUserTableCache && excelUserTableCache.mtime === mtime) {
@@ -83,7 +74,7 @@ async function loadDeals() {
             });
             userTable = userResult.users;
             excelUserTableCache = { mtime, users: userTable };
-            if (!userResult.foundSheet) console.log(`[excel] No "User" sheet found -- skipping primary resolution`);
+            if (!userResult.foundSheet) console.log(`[excel] No "User" sheet found - skipping primary resolution`);
           }
           const resolved = applyUserTable(parsed.deals, userTable);
           console.log(`[excel] User table: ${userTable.size.toLocaleString()} users loaded, ${resolved.toLocaleString()} deals resolved`);
@@ -91,13 +82,10 @@ async function loadDeals() {
           console.warn(`[excel] User table read failed: ${e.message}`);
         }
 
-        // Fallback: any remaining unresolved bdrIds -> cross-file join against
-        // the older BDR data sheet.xlsx (which has resolved names from the
-        // SF report formula).
         const refPath = process.env.BDR_NAME_REFERENCE_PATH;
         if (refPath && fs.existsSync(refPath)) {
           try {
-            const refParsed = readDealsFromFile(refPath);
+            const refParsed = await readDealsFromFile(refPath);
             const fallbackMap = buildUserMapFromReference(refParsed.deals, parsed.deals);
             const resolved = applyBdrNameMap(parsed.deals, fallbackMap);
             if (resolved > 0) {
@@ -121,7 +109,8 @@ async function loadDeals() {
         excelDealCache = { mtime, result };
         return result;
       }
-      const parsed = readDealsFromFile(filePath, sheetName ? { sheetName } : {});
+
+      const parsed = await readDealsFromFile(filePath, sheetName ? { sheetName } : {});
       return {
         source: "excel",
         deals: parsed.deals,
@@ -163,7 +152,6 @@ async function loadUsers(dealsResult) {
   if (SOURCE === "mock") {
     return { source: "mock", users: getMockUsers() };
   }
-  // Excel + SharePoint: derive from deals
   return {
     source: dealsResult.source,
     users: deriveUsersFromDeals(dealsResult.deals),
@@ -196,15 +184,12 @@ app.get("/api/activities", async (_req, res) => {
       const filePath = process.env.EXCEL_FILE_PATH;
       if (!filePath) return res.json({ source: "excel", activities: [], note: "EXCEL_FILE_PATH not set" });
       const stat = fs.statSync(filePath);
-      // Prefer the SF Task sheet if present in the configured workbook.
-      // Resolves OwnerId -> BDR name via the cached User table.
       try {
         if (excelTaskCache && excelTaskCache.mtime === stat.mtimeMs) {
           return res.json({ source: "excel", activities: excelTaskCache.activities, meta: { sheetName: "Task", mode: "stream" } });
         }
         let userTable = excelUserTableCache?.users || new Map();
         if (userTable.size === 0) {
-          // Lazy-load user table if /api/activities is hit before /api/deals
           const userResult = await streamReadUserTable(filePath, { sheetName: process.env.USER_SHEET_NAME || "User" });
           userTable = userResult.users;
           excelUserTableCache = { mtime: stat.mtimeMs, users: userTable };
@@ -220,10 +205,10 @@ app.get("/api/activities", async (_req, res) => {
       } catch (e) {
         console.warn(`[activities] Task sheet read failed: ${e.message}`);
       }
-      // Fallback: in-memory parser for the Calls report tab from BDR data sheet.xlsx
+
       const fallbackPath = process.env.ACTIVITIES_FALLBACK_PATH || process.env.BDR_NAME_REFERENCE_PATH;
       if (fallbackPath && fs.existsSync(fallbackPath)) {
-        const parsed = readActivitiesFromFile(fallbackPath);
+        const parsed = await readActivitiesFromFile(fallbackPath);
         return res.json({
           source: "excel",
           activities: parsed.activities,
@@ -252,8 +237,6 @@ app.get("/api/users", async (_req, res) => {
   }
 });
 
-// Diagnostic endpoint for Excel / SharePoint sources -- shows which columns
-// got mapped, which didn't, and what sheets exist. Useful when first connecting.
 app.get("/api/diagnostics", async (_req, res) => {
   try {
     if (SOURCE !== "excel" && SOURCE !== "sharepoint") {
