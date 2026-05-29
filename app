@@ -663,6 +663,404 @@ function getProductData(ss) {
   return { byProduct };
 }
 
+// ── Sales Play config (optional "Sales Play" tab, else built-in defaults) ───
+function getSalesPlayConfig(ss) {
+  const extSs = openCoeffSs_();
+  const sh = (extSs && (
+    extSs.getSheetByName('Sales Play')   || extSs.getSheetByName('SalesPlay')   ||
+    extSs.getSheetByName('Sales Plays')  || extSs.getSheetByName('sales play')  ||
+    extSs.getSheetByName('ICP Play')     || extSs.getSheetByName('Playbook')
+  )) ||
+  ss.getSheetByName('Sales Play') || ss.getSheetByName('SalesPlay');
+
+  const defaults = [
+    {
+      id: 'shadow-it',
+      name: 'Shadow IT & Unauthorized Access',
+      segments: ['Mid-Market', 'Enterprise', 'Commercial'],
+      industries: ['Technology', 'Software', 'Financial Services', 'Media', 'Retail'],
+      minEmployees: 200, maxEmployees: 50000,
+      description: 'Companies with app sprawl and unmanaged credentials — Cerby secures non-SSO apps.',
+    },
+    {
+      id: 'compliance',
+      name: 'Compliance & Audit Readiness',
+      segments: ['Enterprise', 'Mid-Market'],
+      industries: ['Financial Services', 'Healthcare', 'Insurance', 'Government', 'Legal'],
+      minEmployees: 500, maxEmployees: 100000,
+      description: 'Regulated orgs needing access governance, audit trails, and policy enforcement.',
+    },
+    {
+      id: 'enterprise-sso',
+      name: 'Enterprise SSO Modernization',
+      segments: ['Enterprise', 'Strategic'],
+      industries: ['Technology', 'Financial Services', 'Manufacturing', 'Energy', 'Telecommunications'],
+      minEmployees: 1000, maxEmployees: 500000,
+      description: 'Large enterprises extending SSO to apps that don\'t support SAML/OIDC natively.',
+    },
+    {
+      id: 'partner-led',
+      name: 'Partner-Led Growth',
+      segments: ['Mid-Market', 'Commercial', 'Enterprise'],
+      industries: [],
+      minEmployees: 100, maxEmployees: 50000,
+      description: 'Accounts sourced via partners — prioritize warm intros and co-sell motions.',
+    },
+  ];
+
+  if (!sh) return { plays: defaults, source: 'default' };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { plays: defaults, source: 'default' };
+
+  const headers = sh.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(h => String(h).trim().toLowerCase());
+  const col = (...names) => {
+    for (const name of names) {
+      const ln = name.toLowerCase();
+      const exact = headers.indexOf(ln);
+      if (exact >= 0) return exact;
+      const partial = headers.findIndex(h => h.includes(ln));
+      if (partial >= 0) return partial;
+    }
+    return -1;
+  };
+
+  const C = {
+    id       : col('id', 'play id'),
+    name     : col('play name', 'name', 'play'),
+    segments : col('target segments', 'segments', 'segment'),
+    industries: col('target industries', 'industries', 'industry'),
+    minEmp   : col('min employees', 'min emp', 'min employees'),
+    maxEmp   : col('max employees', 'max emp', 'max employees'),
+    desc     : col('description', 'desc'),
+  };
+
+  const data = sh.getRange(2, 1, lastRow - 1, lastCol).getValues();
+  const plays = [];
+  for (const row of data) {
+    const name = C.name >= 0 ? clean(row[C.name]) : '';
+    if (!name) continue;
+    const segStr = C.segments >= 0 ? clean(row[C.segments]) : '';
+    const indStr = C.industries >= 0 ? clean(row[C.industries]) : '';
+    plays.push({
+      id: C.id >= 0 ? clean(row[C.id]) : name.toLowerCase().replace(/[^a-z0-9]+/g, '-'),
+      name,
+      segments: segStr ? segStr.split(/[,;|]/).map(s => s.trim()).filter(Boolean) : [],
+      industries: indStr ? indStr.split(/[,;|]/).map(s => s.trim()).filter(Boolean) : [],
+      minEmployees: C.minEmp >= 0 ? num(row[C.minEmp]) : 0,
+      maxEmployees: C.maxEmp >= 0 ? num(row[C.maxEmp]) : 999999,
+      description: C.desc >= 0 ? clean(row[C.desc]) : '',
+    });
+  }
+
+  return { plays: plays.length ? plays : defaults, source: plays.length ? 'sheet' : 'default' };
+}
+
+// ── ICP / target account data (prospects + territory + firmographics) ───────
+function getIcpAccountData(ss, oppMetrics) {
+  const extSs = openCoeffSs_();
+  const sh = (extSs && (extSs.getSheetByName('Account') ||
+                        extSs.getSheetByName('Accounts') ||
+                        extSs.getSheetByName('account') ||
+                        extSs.getSheetByName('accounts'))) ||
+             ss.getSheetByName('Account') ||
+             ss.getSheetByName('accounts');
+  if (!sh) return null;
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { accounts: [], byAe: {}, byTerritory: {}, byTier: {}, summary: {} };
+
+  const r1val = String(sh.getRange(1,1,1,1).getValue()).toLowerCase();
+  const headerRow = (r1val.includes('salesforce') || r1val.includes('admin') || r1val === '') ? 2 : 1;
+
+  const headers = sh.getRange(headerRow, 1, 1, lastCol).getValues()[0]
+    .map(h => String(h).trim().toLowerCase());
+
+  const col = (...names) => {
+    for (const name of names) {
+      const ln = name.toLowerCase();
+      const exact = headers.indexOf(ln);
+      if (exact >= 0) return exact;
+      const partial = headers.findIndex(h => h.includes(ln));
+      if (partial >= 0) return partial;
+    }
+    return -1;
+  };
+
+  const C = {
+    id           : col('id'),
+    name         : col('name'),
+    type         : col('type'),
+    status       : col('account_status__c', 'account status', 'status'),
+    segment      : col('company_segment__c', 'company segment', 'segment'),
+    industry     : col('industry'),
+    ownerName    : col('owner.name', 'owner_name', 'owner name', 'account owner'),
+    territory    : col('territory__c', 'territory', 'sales_territory__c', 'sales territory', 'region'),
+    employees    : col('numberofemployees', 'number of employees', 'employees', 'employee count'),
+    revenue      : col('annualrevenue', 'annual revenue', 'revenue'),
+    country      : col('billingcountry', 'billing country', 'country'),
+    state        : col('billingstate', 'billing state', 'state'),
+    icpScore     : col('icp_score__c', 'icp score', 'icp fit score'),
+    icpTier      : col('icp_tier__c', 'icp tier', 'fit tier'),
+    targetAcct   : col('target_account__c', 'target account', 'is target'),
+    lastActivity : col('lastactivitydate', 'last activity date', 'last activity', 'lastactivity'),
+    website      : col('website'),
+  };
+
+  const dataStart = headerRow + 1;
+  const numRows   = lastRow - headerRow;
+  if (numRows <= 0) return { accounts: [], byAe: {}, byTerritory: {}, byTier: {}, summary: {} };
+
+  const data = sh.getRange(dataStart, 1, numRows, lastCol).getValues();
+  const salesPlays = getSalesPlayConfig(ss).plays || [];
+  const activityMap = buildAccountActivityMap_(oppMetrics);
+  const accounts = [];
+
+  for (const row of data) {
+    const name   = C.name >= 0 ? clean(row[C.name]) : '';
+    const type   = C.type >= 0 ? clean(row[C.type]) : '';
+    if (!name) continue;
+
+    const typeLower = type.toLowerCase();
+    const isCustomer = typeLower === 'customer';
+    const isFormer   = typeLower.includes('former');
+    const isTarget   = C.targetAcct >= 0 && (
+      row[C.targetAcct] === true ||
+      String(row[C.targetAcct]).toLowerCase() === 'true' ||
+      String(row[C.targetAcct]).toLowerCase() === 'yes'
+    );
+
+    if (isCustomer || isFormer) continue;
+    const isProspectType = typeLower.includes('prospect') || typeLower.includes('lead') ||
+      typeLower.includes('target') || typeLower.includes('opportunity') || !type;
+    if (!isProspectType && !isTarget) continue;
+
+    const segment   = C.segment   >= 0 ? clean(row[C.segment])   : '';
+    const industry  = C.industry  >= 0 ? clean(row[C.industry])  : '';
+    const ownerName = C.ownerName  >= 0 ? clean(row[C.ownerName]) : '';
+    const territory = C.territory  >= 0 ? clean(row[C.territory]) : '';
+    const employees = C.employees  >= 0 ? num(row[C.employees])  : 0;
+    const revenue   = C.revenue    >= 0 ? num(row[C.revenue])    : 0;
+    const country   = C.country    >= 0 ? clean(row[C.country])  : '';
+    const state     = C.state      >= 0 ? clean(row[C.state])    : '';
+    const sfIcpScore = C.icpScore  >= 0 ? num(row[C.icpScore])   : null;
+    const sfIcpTier  = C.icpTier   >= 0 ? clean(row[C.icpTier])  : '';
+
+    let lastAct = null;
+    if (C.lastActivity >= 0) {
+      const v = row[C.lastActivity];
+      if (v instanceof Date && !isNaN(v.getTime())) lastAct = v;
+      else if (typeof v === 'string' && v.trim()) { const d = new Date(v); if (!isNaN(d)) lastAct = d; }
+    }
+
+    const actKey = name.toLowerCase().trim();
+    const oppAct = activityMap[actKey] || { openOpps: 0, openArr: 0, lastOppDate: null, stages: [] };
+
+    if (!lastAct && oppAct.lastOppDate) lastAct = oppAct.lastOppDate;
+
+    const playScores = scoreAccountAgainstPlays_({
+      segment, industry, employees, revenue, territory, country, state,
+    }, salesPlays);
+
+    const bestPlay = playScores.length ? playScores[0] : null;
+    const computedScore = sfIcpScore !== null && sfIcpScore > 0
+      ? Math.round(sfIcpScore)
+      : (bestPlay ? bestPlay.score : 0);
+    const tier = sfIcpTier || tierFromScore_(computedScore);
+
+    const daysSinceActivity = lastAct
+      ? Math.round((new Date() - lastAct) / 86400000)
+      : null;
+    const activityLevel = activityLevel_(daysSinceActivity, oppAct.openOpps);
+
+    accounts.push({
+      id          : C.id >= 0 ? clean(row[C.id]) : '',
+      name, type, status: C.status >= 0 ? clean(row[C.status]) : '',
+      segment, industry, ownerName,
+      territory: territory || inferTerritory_(country, state),
+      employees, revenue, country, state,
+      website     : C.website >= 0 ? clean(row[C.website]) : '',
+      isTarget,
+      icpScore    : computedScore,
+      icpTier     : tier,
+      bestPlay    : bestPlay ? bestPlay.name : '',
+      bestPlayId  : bestPlay ? bestPlay.id : '',
+      playScores,
+      lastActivity: lastAct ? toIsoDate_(lastAct) : '',
+      daysSinceActivity,
+      activityLevel,
+      openOpps    : oppAct.openOpps,
+      openArr     : oppAct.openArr,
+      oppStages   : oppAct.stages,
+    });
+  }
+
+  accounts.sort((a, b) => b.icpScore - a.icpScore || b.openArr - a.openArr);
+
+  const byAe = {}, byTerritory = {}, byTier = {};
+  for (const a of accounts) {
+    const ae = a.ownerName || 'Unassigned';
+    if (!byAe[ae]) byAe[ae] = { count: 0, perfectFit: 0, engaged: 0, avgScore: 0, totalScore: 0 };
+    byAe[ae].count++;
+    byAe[ae].totalScore += a.icpScore;
+    if (a.icpTier === 'Perfect Fit') byAe[ae].perfectFit++;
+    if (a.activityLevel !== 'None') byAe[ae].engaged++;
+
+    const terr = a.territory || 'Unknown';
+    if (!byTerritory[terr]) byTerritory[terr] = { count: 0, perfectFit: 0, avgScore: 0, totalScore: 0 };
+    byTerritory[terr].count++;
+    byTerritory[terr].totalScore += a.icpScore;
+    if (a.icpTier === 'Perfect Fit') byTerritory[terr].perfectFit++;
+
+    if (!byTier[a.icpTier]) byTier[a.icpTier] = 0;
+    byTier[a.icpTier]++;
+  }
+  for (const k of Object.keys(byAe)) byAe[k].avgScore = Math.round(byAe[k].totalScore / byAe[k].count);
+  for (const k of Object.keys(byTerritory)) byTerritory[k].avgScore = Math.round(byTerritory[k].totalScore / byTerritory[k].count);
+
+  const perfectFit = accounts.filter(a => a.icpTier === 'Perfect Fit');
+  const noActivityPerfect = perfectFit.filter(a => a.activityLevel === 'None');
+
+  return {
+    accounts,
+    byAe,
+    byTerritory,
+    byTier,
+    territories: Object.keys(byTerritory).sort(),
+    summary: {
+      total: accounts.length,
+      perfectFit: perfectFit.length,
+      goodFit: accounts.filter(a => a.icpTier === 'Good Fit').length,
+      engaged: accounts.filter(a => a.activityLevel !== 'None').length,
+      noActivityPerfect: noActivityPerfect.length,
+      avgScore: accounts.length ? Math.round(accounts.reduce((s, a) => s + a.icpScore, 0) / accounts.length) : 0,
+    },
+    perfectFitNoActivity: noActivityPerfect.slice(0, 20).map(a => ({
+      name: a.name, ownerName: a.ownerName, icpScore: a.icpScore,
+      bestPlay: a.bestPlay, territory: a.territory, segment: a.segment, industry: a.industry,
+    })),
+  };
+}
+
+function buildAccountActivityMap_(oppMetrics) {
+  const map = {};
+  if (!oppMetrics || !oppMetrics.rawOpps) return map;
+
+  function toDate(v) {
+    if (!v) return null;
+    const d = new Date(v);
+    return isNaN(d) ? null : d;
+  }
+
+  for (const o of oppMetrics.rawOpps) {
+    const k = (o.account || '').toLowerCase().trim();
+    if (!k) continue;
+    if (!map[k]) map[k] = { openOpps: 0, openArr: 0, lastOppDate: null, stages: [] };
+
+    const dates = [o.s1Date, o.s2Date, o.createdDate, o.closeDate].map(toDate).filter(Boolean);
+    for (const d of dates) {
+      if (!map[k].lastOppDate || d > map[k].lastOppDate) map[k].lastOppDate = d;
+    }
+
+    if (o.isOpen) {
+      map[k].openOpps++;
+      map[k].openArr += o.arr || 0;
+      if (o.stage && map[k].stages.indexOf(o.stage) < 0) map[k].stages.push(o.stage);
+    }
+  }
+  return map;
+}
+
+function scoreAccountAgainstPlays_(acct, plays) {
+  const results = [];
+  for (const play of plays) {
+    let score = 0;
+
+    if (play.segments && play.segments.length) {
+      const segMatch = play.segments.some(s =>
+        acct.segment && acct.segment.toLowerCase().includes(s.toLowerCase().split('-')[0].trim())
+      );
+      score += segMatch ? 30 : (acct.segment ? 10 : 0);
+    } else {
+      score += 15;
+    }
+
+    if (play.industries && play.industries.length) {
+      const indMatch = play.industries.some(i =>
+        acct.industry && (
+          acct.industry.toLowerCase().includes(i.toLowerCase()) ||
+          i.toLowerCase().includes(acct.industry.toLowerCase())
+        )
+      );
+      score += indMatch ? 25 : (acct.industry ? 8 : 0);
+    } else {
+      score += 12;
+    }
+
+    const emp = acct.employees || 0;
+    if (emp > 0 && play.minEmployees != null) {
+      if (emp >= play.minEmployees && emp <= (play.maxEmployees || 999999)) score += 25;
+      else if (emp >= play.minEmployees * 0.5) score += 12;
+    } else if (!play.minEmployees) {
+      score += 12;
+    }
+
+    if (!emp && acct.revenue > 0 && play.minEmployees) {
+      const estEmp = acct.revenue / 200000;
+      if (estEmp >= play.minEmployees) score += 15;
+    }
+
+    score += acct.territory ? 10 : 5;
+    if (acct.country) score += 10;
+    else if (acct.state) score += 5;
+
+    results.push({ id: play.id, name: play.name, score: Math.min(100, score) });
+  }
+  results.sort((a, b) => b.score - a.score);
+  return results;
+}
+
+function tierFromScore_(score) {
+  if (score >= 80) return 'Perfect Fit';
+  if (score >= 60) return 'Good Fit';
+  if (score >= 40) return 'Moderate Fit';
+  return 'Low Fit';
+}
+
+function activityLevel_(daysSince, openOpps) {
+  if (openOpps > 0) return 'Active Pipeline';
+  if (daysSince === null) return 'None';
+  if (daysSince <= 30) return 'Recent';
+  if (daysSince <= 90) return 'Stale';
+  return 'None';
+}
+
+function inferTerritory_(country, state) {
+  if (!country && !state) return '';
+  const c = (country || '').toLowerCase();
+  const s = (state || '').toLowerCase();
+  if (c.includes('united kingdom') || c === 'uk') return 'EMEA';
+  if (c.includes('germany') || c.includes('france') || c.includes('netherlands')) return 'EMEA';
+  if (c.includes('canada')) return 'Canada';
+  if (c.includes('australia')) return 'APAC';
+  if (s && ['ca','wa','or','nv','az','hi','ak'].some(x => s.startsWith(x) || s === x)) return 'West';
+  if (s && ['ny','nj','pa','ma','ct','ri','vt','nh','me','md','de','dc','va','wv'].some(x => s.startsWith(x) || s === x)) return 'East';
+  if (s && ['tx','ok','la','ar','nm'].some(x => s.startsWith(x) || s === x)) return 'Central';
+  if (s && ['il','in','oh','mi','wi','mn','mo','ia','ks','ne','sd','nd'].some(x => s.startsWith(x) || s === x)) return 'Midwest';
+  if (s && ['fl','ga','nc','sc','tn','al','ms','ky'].some(x => s.startsWith(x) || s === x)) return 'Southeast';
+  if (c.includes('united states') || c === 'us' || c === 'usa') return 'US';
+  return country || state || '';
+}
+
+function toIsoDate_(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────────
 function num(v) {
   if (v instanceof Date) return 0;

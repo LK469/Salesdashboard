@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerby Accounts ICP Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0c0c16; --bg-card: #13131f; --bg-card2: #18182a;
+  --accent: #7c3aed; --accent-light: #a78bfa; --blue: #3b82f6;
+  --green: #10b981; --amber: #f59e0b; --red: #f43f5e;
+  --border: #1e1e32; --text: #e2e8f0; --muted: #64748b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; min-height: 100vh; }
+
+.header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.header-brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 34px; height: 34px; background: linear-gradient(135deg, #7c3aed, #3b82f6); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 13px; color: #fff; flex-shrink: 0; }
+.header-title { font-size: 16px; font-weight: 700; }
+.header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.data-badge { font-size: 11px; background: rgba(16,185,129,.12); color: #6ee7b7; border: 1px solid rgba(16,185,129,.25); border-radius: 20px; padding: 4px 10px; }
+.btn { background: var(--green); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; transition: background .15s; }
+.btn:hover { background: #059669; }
+.btn:disabled { opacity: .5; cursor: default; }
+.nav-link { font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; transition: all .15s; white-space: nowrap; }
+.nav-link:hover { color: var(--text); border-color: var(--accent-light); }
+
+.slicer-bar { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 10px 32px; display: flex; align-items: center; gap: 8px; position: sticky; z-index: 40; flex-wrap: nowrap; overflow-x: auto; }
+.slicer-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 4px; flex-shrink: 0; white-space: nowrap; }
+.slicer-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all .15s; white-space: nowrap; flex-shrink: 0; }
+.slicer-btn:hover { border-color: var(--accent-light); color: var(--text); }
+.slicer-btn.active { background: rgba(124,58,237,.2); color: var(--accent-light); border-color: rgba(124,58,237,.5); }
+.slicer-hint { font-size: 10px; color: var(--muted); margin-left: auto; opacity: 0.55; flex-shrink: 0; white-space: nowrap; }
+
+main { padding: 24px 32px; max-width: 1600px; margin: 0 auto; }
+.section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; margin-top: 28px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 4px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.kpi-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+.kpi-val { font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.kpi-sub { font-size: 11px; color: var(--muted); }
+.c-purple { color: var(--accent-light); } .c-green { color: var(--green); }
+.c-amber { color: var(--amber); } .c-red { color: var(--red); } .c-blue { color: var(--blue); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.card-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+.chart-wrap { position: relative; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; }
+.tbl thead th.r { text-align: right; }
+.tbl tbody td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.03); vertical-align: middle; }
+.tbl tbody td.r { text-align: right; }
+.tbl tbody tr:last-child td { border-bottom: none; }
+.tbl tbody tr:hover td { background: rgba(255,255,255,.015); }
+.tbl-wrap { overflow-x: auto; }
+
+.pill { display: inline-block; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.pill-green  { background: rgba(16,185,129,.15);  color: #10b981; }
+.pill-amber  { background: rgba(245,158,11,.15);  color: #f59e0b; }
+.pill-red    { background: rgba(244,63,94,.15);   color: #f43f5e; }
+.pill-blue   { background: rgba(59,130,246,.15);  color: #60a5fa; }
+.pill-purple { background: rgba(124,58,237,.15);  color: #a78bfa; }
+.pill-muted  { background: rgba(100,116,139,.15); color: #94a3b8; }
+.rep-tag { display: inline-block; background: rgba(59,130,246,.12); color: #93c5fd; border-radius: 4px; padding: 2px 6px; font-size: 10px; font-weight: 600; }
+
+.filter-bar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
+.filter-pill { background: transparent; border: 1px solid var(--border); border-radius: 20px; padding: 4px 12px; font-size: 11px; font-weight: 600; color: var(--muted); cursor: pointer; transition: all .15s; white-space: nowrap; }
+.filter-pill:hover { border-color: var(--accent-light); color: var(--text); }
+.filter-pill.active { background: rgba(124,58,237,.2); color: var(--accent-light); border-color: rgba(124,58,237,.5); }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.dot-live   { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-cached { background: var(--amber); }
+.dot-error  { background: var(--red); }
+
+.empty-state { text-align: center; padding: 36px 20px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.empty-icon { font-size: 28px; margin-bottom: 10px; }
+
+.score-bar { background: rgba(255,255,255,.06); border-radius: 99px; height: 6px; width: 72px; overflow: hidden; display: inline-block; vertical-align: middle; margin-right: 6px; }
+.score-fill { height: 6px; border-radius: 99px; }
+.sf-high { background: var(--green); }
+.sf-mid  { background: var(--amber); }
+.sf-low  { background: var(--red); }
+
+.callout { background: rgba(124,58,237,.08); border: 1px solid rgba(124,58,237,.25); border-radius: 12px; padding: 16px 20px; margin-bottom: 16px; }
+.callout-title { font-size: 14px; font-weight: 700; color: var(--accent-light); margin-bottom: 4px; }
+.callout-sub { font-size: 11px; color: var(--muted); margin-bottom: 12px; }
+
+.play-card { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; margin-bottom: 8px; }
+.play-card-name { font-size: 12px; font-weight: 700; margin-bottom: 4px; }
+.play-card-desc { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+.footer { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 0 32px; }
+
+@media (max-width: 1200px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .grid-3 { grid-template-columns: 1fr; }
+  .grid-2 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">ICP</div>
+    <div>
+      <div class="header-title">Accounts ICP Dashboard</div>
+      <div class="header-sub" id="headerSub">Sales Play · Territory · Firmographics · Activity</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="sales_rep_dashboard.html" class="nav-link">AE View</a>
+    <a href="sales_dashboard.html" class="nav-link">Full Dashboard</a>
+    <a href="forecast_review.html" class="nav-link">Forecast</a>
+    <span class="data-badge" id="dataBadge"><span class="status-dot dot-cached"></span>Cached data</span>
+    <button class="btn" id="refreshBtn">↻ Refresh from Sheets</button>
+  </div>
+</header>
+
+<div class="slicer-bar" id="repSlicerBar" style="top:63px;">
+  <span class="slicer-label">AE</span>
+  <button class="slicer-btn active" onclick="setRep(null)">All</button>
+  <button class="slicer-btn" data-rep="Carlos" onclick="setRep('Carlos')">Carlos</button>
+  <button class="slicer-btn" data-rep="Travis" onclick="setRep('Travis')">Travis</button>
+  <button class="slicer-btn" data-rep="Hainsley" onclick="setRep('Hainsley')">Hainsley</button>
+  <button class="slicer-btn" data-rep="Arye" onclick="setRep('Arye')">Arye</button>
+  <button class="slicer-btn" data-rep="Nageye" onclick="setRep('Nageye')">Nageye</button>
+  <span class="slicer-hint" id="repHint">Filter by account owner</span>
+</div>
+
+<div class="slicer-bar" id="playSlicerBar" style="top:107px;">
+  <span class="slicer-label">Sales Play</span>
+  <button class="slicer-btn active" onclick="setPlay(null)">All Plays</button>
+  <span class="slicer-hint">Load data to see plays</span>
+</div>
+
+<div class="slicer-bar" id="territorySlicerBar" style="top:151px;">
+  <span class="slicer-label">Territory</span>
+  <button class="slicer-btn active" onclick="setTerritory(null)">All</button>
+  <span class="slicer-hint">Load data to see territories</span>
+</div>
+
+<main>
+
+<div class="section-label">ICP Overview</div>
+<div class="kpi-row" id="kpiRow">
+  <div class="kpi"><div class="kpi-lbl">Target Accounts</div><div class="kpi-val c-blue">—</div><div class="kpi-sub">Refresh to load</div></div>
+  <div class="kpi"><div class="kpi-lbl">Perfect Fit</div><div class="kpi-val c-green">—</div><div class="kpi-sub">ICP score ≥ 80</div></div>
+  <div class="kpi"><div class="kpi-lbl">No Activity (Perfect)</div><div class="kpi-val c-red">—</div><div class="kpi-sub">Highest priority outreach</div></div>
+  <div class="kpi"><div class="kpi-lbl">Engaged Accounts</div><div class="kpi-val c-purple">—</div><div class="kpi-sub">Recent activity or open pipeline</div></div>
+  <div class="kpi"><div class="kpi-lbl">Avg ICP Score</div><div class="kpi-val c-amber">—</div><div class="kpi-sub">Across filtered accounts</div></div>
+  <div class="kpi"><div class="kpi-lbl">Open Pipeline</div><div class="kpi-val c-blue">—</div><div class="kpi-sub">From ICP accounts</div></div>
+</div>
+
+<div id="perfectFitCallout"></div>
+
+<div class="section-label">Breakdown</div>
+<div class="grid-3">
+  <div class="card">
+    <div class="card-title">ICP Fit Tier</div>
+    <div class="card-sub">Distribution of accounts by fit score</div>
+    <div class="chart-wrap" style="height:220px;"><canvas id="tierChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Accounts by Territory</div>
+    <div class="card-sub">Count and perfect-fit rate by region</div>
+    <div class="chart-wrap" style="height:220px;"><canvas id="territoryChart"></canvas></div>
+  </div>
+  <div class="card">
+    <div class="card-title">Sales Plays</div>
+    <div class="card-sub" id="playCardSub">Active play definitions</div>
+    <div id="playCardsContent"><div class="empty-state" style="padding:20px;">Refresh to load sales plays</div></div>
+  </div>
+</div>
+
+<div class="section-label">AE Account Coverage</div>
+<div class="card" style="margin-bottom:16px;">
+  <div class="card-title">Accounts per AE</div>
+  <div class="card-sub">Target account count, perfect fits, and engagement by rep</div>
+  <div id="aeSummaryContent"><div class="empty-state" style="padding:20px;">Refresh to load</div></div>
+</div>
+
+<div class="section-label">Account List</div>
+<div class="card">
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+    <div>
+      <div class="card-title" id="accountTableTitle">ICP Account Rankings</div>
+      <div class="card-sub" id="accountTableSub">Sorted by ICP score · firmographics · activity</div>
+    </div>
+  </div>
+  <div class="filter-bar" id="tierFilterBar">
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-right:4px;">Fit Tier</span>
+    <button class="filter-pill active" data-tier="all" onclick="setTierFilter('all')">All</button>
+    <button class="filter-pill" data-tier="Perfect Fit" onclick="setTierFilter('Perfect Fit')">Perfect Fit</button>
+    <button class="filter-pill" data-tier="Good Fit" onclick="setTierFilter('Good Fit')">Good Fit</button>
+    <button class="filter-pill" data-tier="Moderate Fit" onclick="setTierFilter('Moderate Fit')">Moderate</button>
+    <button class="filter-pill" data-tier="Low Fit" onclick="setTierFilter('Low Fit')">Low Fit</button>
+    <span style="width:16px;"></span>
+    <span style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-right:4px;">Activity</span>
+    <button class="filter-pill active" data-act="all" onclick="setActivityFilter('all')">All</button>
+    <button class="filter-pill" data-act="none" onclick="setActivityFilter('none')">No Activity</button>
+    <button class="filter-pill" data-act="pipeline" onclick="setActivityFilter('pipeline')">Open Pipeline</button>
+  </div>
+  <div id="accountTableContent"><div class="empty-state"><div class="empty-icon">🎯</div>Refresh to load ICP account data</div></div>
+</div>
+
+</main>
+<div class="footer">Cerby Accounts ICP Dashboard · Salesforce via Coefficient + Apps Script</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('refreshBtn').addEventListener('click', refreshFromSheets);
+});
+
+const SCRIPT_URL = 'https://script.google.com/a/macros/cerby.com/s/AKfycbw9TgnAp9IKgk9zkzZtYN2ArI_r7ZDH4HbG234TgKxZBKltWg3zPNseajAnaVTYhah8/exec';
+const SALES_REPS = ['Carlos', 'Travis', 'Hainsley', 'Arye', 'Nageye'];
+
+let selectedRep = null;
+let selectedPlay = null;
+let selectedTerritory = null;
+let tierFilter = 'all';
+let activityFilter = 'all';
+const charts = {};
+const repKeyMap = {};
+
+let D = {
+  icpAccounts: { accounts: [], byAe: {}, byTerritory: {}, byTier: {}, summary: {}, territories: [], perfectFitNoActivity: [] },
+  salesPlays: { plays: [], source: 'default' },
+  oppMetrics: { rawOpps: [], reps: [] },
+};
+
+const fmt = {
+  usd: v => {
+    const n = Number(v) || 0;
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return '$' + Math.round(n / 1e3) + 'K';
+    return n ? '$' + Math.round(n) : '—';
+  },
+  num: v => {
+    const n = Number(v) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+    return n ? String(n) : '—';
+  },
+  date: s => {
+    if (!s) return '—';
+    const p = s.split('-');
+    if (p.length < 3) return s;
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return mn[parseInt(p[1],10)-1] + ' ' + parseInt(p[2],10) + ', ' + p[0];
+  },
+};
+
+function repFirstMatch(sfName, target) {
+  if (!sfName || !target) return false;
+  const a = sfName.toLowerCase();
+  const b = target.toLowerCase();
+  if (a === b) return true;
+  return a.split(' ')[0] === b.split(' ')[0];
+}
+
+function resolveRepKey(shortName) {
+  if (!shortName) return null;
+  if (repKeyMap[shortName]) return repKeyMap[shortName];
+  const sfReps = D.oppMetrics.reps || Object.keys(D.icpAccounts.byAe || {});
+  const match = sfReps.find(r => r.toLowerCase().split(' ')[0] === shortName.toLowerCase());
+  if (match) { repKeyMap[shortName] = match; return match; }
+  return shortName;
+}
+
+function getFilteredAccounts() {
+  let list = D.icpAccounts.accounts || [];
+  if (selectedRep) {
+    list = list.filter(a => repFirstMatch(a.ownerName, selectedRep));
+  }
+  if (selectedPlay) {
+    list = list.filter(a => a.bestPlayId === selectedPlay || a.bestPlay === selectedPlay);
+  }
+  if (selectedTerritory) {
+    list = list.filter(a => (a.territory || 'Unknown') === selectedTerritory);
+  }
+  if (tierFilter !== 'all') {
+    list = list.filter(a => a.icpTier === tierFilter);
+  }
+  if (activityFilter === 'none') {
+    list = list.filter(a => a.activityLevel === 'None');
+  } else if (activityFilter === 'pipeline') {
+    list = list.filter(a => a.openOpps > 0);
+  }
+  return list;
+}
+
+function setRep(nameArg) {
+  selectedRep = nameArg ? resolveRepKey(nameArg) : null;
+  document.querySelectorAll('#repSlicerBar .slicer-btn').forEach(b => {
+    const label = b.textContent.trim();
+    if (!nameArg) b.classList.toggle('active', label === 'All');
+    else b.classList.toggle('active', label !== 'All' && (repFirstMatch(label, nameArg) || repFirstMatch(selectedRep, label)));
+  });
+  rebuildAll();
+}
+
+function setPlay(id) {
+  selectedPlay = id;
+  document.querySelectorAll('#playSlicerBar .slicer-btn').forEach(b => {
+    const isAll = b.textContent.trim() === 'All Plays';
+    if (!id) b.classList.toggle('active', isAll);
+    else b.classList.toggle('active', b.getAttribute('data-play') === id);
+  });
+  rebuildAll();
+}
+
+function setTerritory(t) {
+  selectedTerritory = t;
+  document.querySelectorAll('#territorySlicerBar .slicer-btn').forEach(b => {
+    const isAll = b.textContent.trim() === 'All';
+    if (!t) b.classList.toggle('active', isAll);
+    else b.classList.toggle('active', b.getAttribute('data-territory') === t);
+  });
+  rebuildAll();
+}
+
+function setTierFilter(t) {
+  tierFilter = t;
+  document.querySelectorAll('#tierFilterBar .filter-pill[data-tier]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tier') === t);
+  });
+  buildAccountTable();
+}
+
+function setActivityFilter(a) {
+  activityFilter = a;
+  document.querySelectorAll('#tierFilterBar .filter-pill[data-act]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-act') === a);
+  });
+  buildAccountTable();
+}
+
+function buildRepSlicer() {
+  const sfReps = D.oppMetrics.reps || Object.keys(D.icpAccounts.byAe || {});
+  SALES_REPS.forEach(shortName => {
+    const full = sfReps.find(r => r.toLowerCase().split(' ')[0] === shortName.toLowerCase()) || shortName;
+    repKeyMap[shortName] = full;
+  });
+}
+
+function buildPlaySlicer() {
+  const plays = D.salesPlays.plays || [];
+  const bar = document.getElementById('playSlicerBar');
+  const allBtn = `<button class="slicer-btn ${!selectedPlay ? 'active' : ''}" onclick="setPlay(null)">All Plays</button>`;
+  const btns = plays.map(p =>
+    `<button class="slicer-btn ${selectedPlay === p.id ? 'active' : ''}" data-play="${p.id}" onclick="setPlay('${p.id}')">${p.name.split(' ').slice(0,2).join(' ')}</button>`
+  ).join('');
+  bar.innerHTML = `<span class="slicer-label">Sales Play</span>${allBtn}${btns}<span class="slicer-hint">${D.salesPlays.source === 'sheet' ? 'Custom plays from sheet' : 'Default Cerby plays'}</span>`;
+}
+
+function buildTerritorySlicer() {
+  const territories = D.icpAccounts.territories || [];
+  const bar = document.getElementById('territorySlicerBar');
+  const allBtn = `<button class="slicer-btn ${!selectedTerritory ? 'active' : ''}" onclick="setTerritory(null)">All</button>`;
+  const btns = territories.filter(t => t && t !== 'Unknown').map(t =>
+    `<button class="slicer-btn ${selectedTerritory === t ? 'active' : ''}" data-territory="${t}" onclick="setTerritory('${t.replace(/'/g,"\\'")}')">${t}</button>`
+  ).join('');
+  bar.innerHTML = `<span class="slicer-label">Territory</span>${allBtn}${btns}<span class="slicer-hint">${territories.length} territories</span>`;
+}
+
+function tierPill(tier) {
+  const map = {
+    'Perfect Fit': 'pill-green', 'Good Fit': 'pill-blue',
+    'Moderate Fit': 'pill-amber', 'Low Fit': 'pill-red',
+  };
+  return `<span class="pill ${map[tier] || 'pill-muted'}">${tier || '—'}</span>`;
+}
+
+function activityPill(level) {
+  const map = {
+    'Active Pipeline': 'pill-green', 'Recent': 'pill-blue',
+    'Stale': 'pill-amber', 'None': 'pill-red',
+  };
+  return `<span class="pill ${map[level] || 'pill-muted'}">${level || 'None'}</span>`;
+}
+
+function scoreBar(score) {
+  const cls = score >= 80 ? 'sf-high' : score >= 60 ? 'sf-mid' : 'sf-low';
+  return `<span class="score-bar"><span class="score-fill ${cls}" style="width:${Math.min(100, score)}%"></span></span><strong>${score}</strong>`;
+}
+
+function buildKPIRow() {
+  const list = getFilteredAccounts();
+  const perfect = list.filter(a => a.icpTier === 'Perfect Fit');
+  const noActPerfect = perfect.filter(a => a.activityLevel === 'None');
+  const engaged = list.filter(a => a.activityLevel !== 'None');
+  const avgScore = list.length ? Math.round(list.reduce((s,a) => s + a.icpScore, 0) / list.length) : 0;
+  const openArr = list.reduce((s,a) => s + (a.openArr || 0), 0);
+  const openOpps = list.reduce((s,a) => s + (a.openOpps || 0), 0);
+
+  const repSuffix = selectedRep ? ` · ${selectedRep}` : '';
+  const playSuffix = selectedPlay ? ` · ${(D.salesPlays.plays||[]).find(p=>p.id===selectedPlay)?.name?.split(' ')[0]||''}` : '';
+
+  document.getElementById('kpiRow').innerHTML = [
+    { lbl: 'Target Accounts', val: list.length || '—', sub: `Prospects & targets${repSuffix}`, c: 'c-blue' },
+    { lbl: 'Perfect Fit', val: perfect.length || (list.length ? 0 : '—'), sub: 'ICP score ≥ 80' + playSuffix, c: 'c-green' },
+    { lbl: 'No Activity (Perfect)', val: noActPerfect.length || (perfect.length ? 0 : '—'), sub: 'Highest priority outreach', c: 'c-red' },
+    { lbl: 'Engaged Accounts', val: engaged.length || (list.length ? 0 : '—'), sub: 'Recent activity or pipeline', c: 'c-purple' },
+    { lbl: 'Avg ICP Score', val: avgScore || '—', sub: 'Across filtered accounts', c: 'c-amber' },
+    { lbl: 'Open Pipeline', val: openArr ? fmt.usd(openArr) : (list.length ? '$0' : '—'), sub: `${openOpps} opp${openOpps!==1?'s':''} on ICP accounts`, c: 'c-blue' },
+  ].map(k => `<div class="kpi"><div class="kpi-lbl">${k.lbl}</div><div class="kpi-val ${k.c}">${k.val}</div><div class="kpi-sub">${k.sub}</div></div>`).join('');
+}
+
+function buildPerfectFitCallout() {
+  const el = document.getElementById('perfectFitCallout');
+  const list = getFilteredAccounts().filter(a => a.icpTier === 'Perfect Fit' && a.activityLevel === 'None');
+  if (!list.length) { el.innerHTML = ''; return; }
+
+  el.innerHTML =
+    `<div class="callout">` +
+    `<div class="callout-title">🎯 ${list.length} Perfect-Fit Account${list.length!==1?'s':''} With No Activity</div>` +
+    `<div class="callout-sub">These accounts match your sales play ICP but have no recent engagement — highest priority for outreach.</div>` +
+    `<div class="tbl-wrap"><table class="tbl"><thead><tr>` +
+    `<th>Account</th><th>AE</th><th>Territory</th><th>Segment</th><th>Industry</th><th>Sales Play</th><th class="r">ICP Score</th>` +
+    `</tr></thead><tbody>` +
+    list.slice(0, 8).map(a =>
+      `<tr>` +
+      `<td style="font-weight:700;">${a.name}</td>` +
+      `<td>${a.ownerName ? `<span class="rep-tag">${a.ownerName.split(' ')[0]}</span>` : '—'}</td>` +
+      `<td>${a.territory || '—'}</td>` +
+      `<td>${a.segment ? `<span class="pill pill-purple">${a.segment}</span>` : '—'}</td>` +
+      `<td style="color:var(--muted);">${a.industry || '—'}</td>` +
+      `<td><span class="pill pill-blue">${a.bestPlay ? a.bestPlay.split(' ').slice(0,3).join(' ') : '—'}</span></td>` +
+      `<td class="r">${scoreBar(a.icpScore)}</td>` +
+      `</tr>`
+    ).join('') +
+    `</tbody></table></div>` +
+    (list.length > 8 ? `<div style="text-align:center;padding:8px;font-size:11px;color:var(--muted);">+ ${list.length-8} more in table below</div>` : '') +
+    `</div>`;
+}
+
+function buildTierChart() {
+  const ctx = document.getElementById('tierChart');
+  if (!ctx) return;
+  const list = getFilteredAccounts();
+  const tiers = ['Perfect Fit', 'Good Fit', 'Moderate Fit', 'Low Fit'];
+  const counts = tiers.map(t => list.filter(a => a.icpTier === t).length);
+  const colors = ['#10b981', '#3b82f6', '#f59e0b', '#f43f5e'];
+
+  if (charts.tier) charts.tier.destroy();
+  if (!list.length) return;
+
+  charts.tier = new Chart(ctx, {
+    type: 'doughnut',
+    data: { labels: tiers, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 0 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: {
+        legend: { position: 'right', labels: { color: '#94a3b8', font: { size: 11 }, boxWidth: 12 } },
+      },
+    },
+  });
+}
+
+function buildTerritoryChart() {
+  const ctx = document.getElementById('territoryChart');
+  if (!ctx) return;
+  const list = getFilteredAccounts();
+  const terrMap = {};
+  list.forEach(a => {
+    const t = a.territory || 'Unknown';
+    if (!terrMap[t]) terrMap[t] = { count: 0, perfect: 0 };
+    terrMap[t].count++;
+    if (a.icpTier === 'Perfect Fit') terrMap[t].perfect++;
+  });
+  const entries = Object.entries(terrMap).sort((a,b) => b[1].count - a[1].count).slice(0, 8);
+
+  if (charts.territory) charts.territory.destroy();
+  if (!entries.length) return;
+
+  charts.territory = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: entries.map(e => e[0]),
+      datasets: [
+        { label: 'Accounts', data: entries.map(e => e[1].count), backgroundColor: 'rgba(59,130,246,.7)', borderRadius: 4 },
+        { label: 'Perfect Fit', data: entries.map(e => e[1].perfect), backgroundColor: 'rgba(16,185,129,.7)', borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10 } } },
+        y: { grid: { color: 'rgba(255,255,255,.04)' }, ticks: { color: '#64748b', stepSize: 1 }, beginAtZero: true },
+      },
+    },
+  });
+}
+
+function buildPlayCards() {
+  const el = document.getElementById('playCardsContent');
+  const sub = document.getElementById('playCardSub');
+  const plays = D.salesPlays.plays || [];
+  if (!plays.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px;">No sales plays configured</div>';
+    return;
+  }
+  sub.textContent = D.salesPlays.source === 'sheet' ? 'Loaded from Sales Play sheet tab' : 'Built-in Cerby sales plays';
+  const list = getFilteredAccounts();
+  el.innerHTML = plays.map(p => {
+    const count = list.filter(a => a.bestPlayId === p.id).length;
+    const perfect = list.filter(a => a.bestPlayId === p.id && a.icpTier === 'Perfect Fit').length;
+    return `<div class="play-card">` +
+      `<div class="play-card-name">${p.name} <span class="pill pill-purple" style="margin-left:6px;">${count} accts</span>` +
+      (perfect ? `<span class="pill pill-green" style="margin-left:4px;">${perfect} perfect</span>` : '') +
+      `</div>` +
+      `<div class="play-card-desc">${p.description || ''}</div>` +
+      `<div style="font-size:10px;color:var(--muted);margin-top:6px;">` +
+      `${p.segments?.length ? 'Segments: ' + p.segments.join(', ') : ''}` +
+      `${p.industries?.length ? ' · Industries: ' + p.industries.slice(0,3).join(', ') : ''}` +
+      `${p.minEmployees ? ' · ' + fmt.num(p.minEmployees) + '–' + fmt.num(p.maxEmployees) + ' employees' : ''}` +
+      `</div></div>`;
+  }).join('');
+}
+
+function buildAeSummary() {
+  const el = document.getElementById('aeSummaryContent');
+  const byAe = D.icpAccounts.byAe || {};
+  const reps = SALES_REPS.map(s => resolveRepKey(s)).filter(Boolean);
+  const rows = reps.map(rep => {
+    const data = byAe[rep] || { count: 0, perfectFit: 0, engaged: 0, avgScore: 0 };
+    return { rep, ...data };
+  }).filter(r => r.count > 0 || !Object.keys(byAe).length);
+
+  if (!rows.length && !(D.icpAccounts.accounts||[]).length) {
+    el.innerHTML = `<div class="empty-state" style="padding:20px;"><div class="empty-icon">👥</div>No AE account data yet.<br><span style="font-size:11px;">Ensure Account SOQL includes <code style="background:#1e1e32;padding:1px 5px;border-radius:3px;">Owner.Name</code> and prospect account types.</span></div>`;
+    return;
+  }
+
+  el.innerHTML =
+    `<div class="tbl-wrap"><table class="tbl"><thead><tr>` +
+    `<th>AE</th><th class="r">Accounts</th><th class="r">Perfect Fit</th><th class="r">Engaged</th><th class="r">Avg ICP Score</th><th class="r">Engagement Rate</th>` +
+    `</tr></thead><tbody>` +
+    rows.map(r => {
+      const engRate = r.count ? Math.round(r.engaged / r.count * 100) : 0;
+      const rateCls = engRate >= 50 ? 'c-green' : engRate >= 25 ? 'c-amber' : 'c-red';
+      return `<tr>` +
+        `<td style="font-weight:700;">${r.rep}</td>` +
+        `<td class="r">${r.count}</td>` +
+        `<td class="r" style="color:var(--green);font-weight:700;">${r.perfectFit}</td>` +
+        `<td class="r">${r.engaged}</td>` +
+        `<td class="r">${r.avgScore || '—'}</td>` +
+        `<td class="r ${rateCls}">${r.count ? engRate + '%' : '—'}</td>` +
+        `</tr>`;
+    }).join('') +
+    `</tbody></table></div>`;
+}
+
+function buildAccountTable() {
+  const el = document.getElementById('accountTableContent');
+  const title = document.getElementById('accountTableTitle');
+  const sub = document.getElementById('accountTableSub');
+  const list = getFilteredAccounts();
+
+  if (!(D.icpAccounts.accounts||[]).length) {
+    el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>
+      No ICP account data loaded.<br><br>
+      <strong>Setup required:</strong> Extend your Coefficient Account SOQL to include prospects:<br>
+      <code style="font-size:10px;background:#1e1e32;padding:6px 12px;border-radius:4px;display:inline-block;margin-top:8px;text-align:left;line-height:1.6;">
+        SELECT Name, Type, Owner.Name, Company_Segment__c, Industry,<br>
+        NumberOfEmployees, AnnualRevenue, BillingCountry, BillingState,<br>
+        Territory__c, LastActivityDate, ICP_Score__c<br>
+        FROM Account WHERE Type IN ('Prospect','Lead','Target Account')
+      </code><br>
+      <span style="font-size:11px;margin-top:8px;display:block;">Then redeploy the Apps Script (<code style="background:#1e1e32;padding:1px 4px;border-radius:3px;">app</code> file) and refresh.</span>
+    </div>`;
+    return;
+  }
+
+  title.textContent = `ICP Account Rankings (${list.length})`;
+  const repLbl = selectedRep ? ` · ${selectedRep}` : '';
+  sub.textContent = `Sorted by ICP score${repLbl} · click filters above to narrow`;
+
+  if (!list.length) {
+    el.innerHTML = `<div class="empty-state">No accounts match current filters</div>`;
+    return;
+  }
+
+  el.innerHTML =
+    `<div class="tbl-wrap"><table class="tbl"><thead><tr>` +
+    `<th>Account</th><th>AE</th><th>Territory</th><th>Segment</th><th>Industry</th>` +
+    `<th class="r">Employees</th><th class="r">Revenue</th><th>Sales Play</th>` +
+    `<th class="r">ICP Score</th><th>Fit Tier</th><th>Activity</th><th class="r">Pipeline</th>` +
+    `</tr></thead><tbody>` +
+    list.slice(0, 100).map(a => {
+      const loc = [a.state, a.country].filter(Boolean).join(', ');
+      return `<tr>` +
+        `<td style="font-weight:600;">${a.name}${a.isTarget ? ' <span class="pill pill-amber" style="font-size:9px;">TARGET</span>' : ''}</td>` +
+        `<td>${a.ownerName ? `<span class="rep-tag">${a.ownerName.split(' ')[0]}</span>` : '<span style="color:var(--red);">Unassigned</span>'}</td>` +
+        `<td>${a.territory || '—'}${loc ? `<div style="font-size:10px;color:var(--muted);">${loc}</div>` : ''}</td>` +
+        `<td>${a.segment ? `<span class="pill pill-purple">${a.segment}</span>` : '—'}</td>` +
+        `<td style="color:var(--muted);max-width:120px;">${a.industry || '—'}</td>` +
+        `<td class="r">${fmt.num(a.employees)}</td>` +
+        `<td class="r">${fmt.usd(a.revenue)}</td>` +
+        `<td style="font-size:11px;">${a.bestPlay ? a.bestPlay.split(' ').slice(0,3).join(' ') : '—'}</td>` +
+        `<td class="r">${scoreBar(a.icpScore)}</td>` +
+        `<td>${tierPill(a.icpTier)}</td>` +
+        `<td>${activityPill(a.activityLevel)}${a.lastActivity ? `<div style="font-size:10px;color:var(--muted);">${fmt.date(a.lastActivity)}</div>` : ''}</td>` +
+        `<td class="r">${a.openOpps ? `<span class="pill pill-blue">${a.openOpps} · ${fmt.usd(a.openArr)}</span>` : '—'}</td>` +
+        `</tr>`;
+    }).join('') +
+    `</tbody></table></div>` +
+    (list.length > 100 ? `<div style="text-align:center;padding:10px;font-size:11px;color:var(--muted);">Showing top 100 of ${list.length}</div>` : '');
+}
+
+function rebuildAll() {
+  buildKPIRow();
+  buildPerfectFitCallout();
+  buildTierChart();
+  buildTerritoryChart();
+  buildPlayCards();
+  buildAeSummary();
+  buildAccountTable();
+}
+
+function refreshFromSheets() {
+  const btn = document.getElementById('refreshBtn');
+  const badge = document.getElementById('dataBadge');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+  badge.innerHTML = '<span class="status-dot dot-cached"></span>Fetching…';
+
+  const cbName = '__icpCb_' + Date.now();
+  const tag = document.createElement('script');
+  const timeout = setTimeout(function() {
+    delete window[cbName];
+    if (tag.parentNode) tag.remove();
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh from Sheets';
+    badge.innerHTML = '<span class="status-dot dot-error"></span>Timeout · Try again';
+  }, 30000);
+
+  window[cbName] = function(data) {
+    clearTimeout(timeout);
+    delete window[cbName];
+    tag.remove();
+
+    if (data && data.oppMetrics && !data.oppMetrics._error) {
+      D.oppMetrics = data.oppMetrics;
+    }
+    if (data && data.icpAccounts && !data.icpAccounts._error) {
+      D.icpAccounts = data.icpAccounts;
+    }
+    if (data && data.salesPlays && !data.salesPlays._error) {
+      D.salesPlays = data.salesPlays;
+    }
+
+    buildRepSlicer();
+    buildPlaySlicer();
+    buildTerritorySlicer();
+    if (selectedRep) selectedRep = resolveRepKey(selectedRep.split(' ')[0]);
+    rebuildAll();
+
+    const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const hasIcp = (D.icpAccounts.accounts||[]).length > 0;
+    badge.innerHTML = `<span class="status-dot dot-live"></span>Live · ${t}`;
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh from Sheets';
+    document.getElementById('headerSub').textContent =
+      hasIcp
+        ? `${D.icpAccounts.accounts.length} ICP accounts · ${(D.salesPlays.plays||[]).length} sales plays · Updated ${t}`
+        : `Redeploy Apps Script to enable ICP data · Updated ${t}`;
+  };
+
+  tag.src = SCRIPT_URL + '?callback=' + cbName;
+  document.head.appendChild(tag);
+}
+
+rebuildAll();
+</script>
+</body>
+</html>
