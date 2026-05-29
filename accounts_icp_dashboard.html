@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cerby Accounts ICP Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #0c0c16; --bg-card: #13131f; --bg-card2: #18182a;
+  --accent: #7c3aed; --accent-light: #a78bfa; --blue: #3b82f6;
+  --green: #10b981; --amber: #f59e0b; --red: #f43f5e; --teal: #14b8a6;
+  --border: #1e1e32; --text: #e2e8f0; --muted: #64748b;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; }
+body { background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif; min-height: 100vh; }
+
+.header { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 14px 32px; display: flex; align-items: center; justify-content: space-between; position: sticky; top: 0; z-index: 50; }
+.header-brand { display: flex; align-items: center; gap: 10px; }
+.logo { width: 34px; height: 34px; background: linear-gradient(135deg, #14b8a6, #7c3aed); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 12px; color: #fff; flex-shrink: 0; }
+.header-title { font-size: 16px; font-weight: 700; }
+.header-sub { font-size: 11px; color: var(--muted); margin-top: 1px; }
+.header-right { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.data-badge { font-size: 11px; background: rgba(20,184,166,.12); color: #5eead4; border: 1px solid rgba(20,184,166,.25); border-radius: 20px; padding: 4px 10px; }
+.btn { background: var(--teal); color: #fff; border: none; border-radius: 8px; padding: 7px 14px; font-size: 12px; font-weight: 600; cursor: pointer; display: flex; align-items: center; gap: 5px; }
+.btn:hover { background: #0d9488; }
+.btn:disabled { opacity: .5; cursor: default; }
+.nav-link { font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; }
+.nav-link:hover { color: var(--text); border-color: var(--accent-light); }
+
+.slicer-bar { background: var(--bg-card); border-bottom: 1px solid var(--border); padding: 10px 32px; display: flex; align-items: center; gap: 8px; position: sticky; z-index: 40; flex-wrap: wrap; }
+.slicer-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-right: 4px; flex-shrink: 0; }
+.slicer-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); border-radius: 20px; padding: 5px 14px; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.slicer-btn:hover { border-color: var(--accent-light); color: var(--text); }
+.slicer-btn.active { background: rgba(124,58,237,.2); color: var(--accent-light); border-color: rgba(124,58,237,.5); }
+.slicer-btn.play-active { background: rgba(20,184,166,.2); color: #5eead4; border-color: rgba(20,184,166,.5); }
+.slicer-hint { font-size: 10px; color: var(--muted); margin-left: auto; opacity: .55; }
+
+main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
+.section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); margin-bottom: 12px; margin-top: 28px; }
+
+.kpi-row { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin-bottom: 4px; }
+.kpi { background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px; padding: 16px; }
+.kpi-lbl { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin-bottom: 6px; }
+.kpi-val { font-size: 22px; font-weight: 800; line-height: 1; margin-bottom: 4px; }
+.kpi-sub { font-size: 11px; color: var(--muted); }
+.c-purple { color: var(--accent-light); } .c-green { color: var(--green); }
+.c-amber { color: var(--amber); } .c-red { color: var(--red); } .c-blue { color: var(--blue); } .c-teal { color: var(--teal); }
+
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
+.grid-32 { display: grid; grid-template-columns: 1fr 2fr; gap: 16px; margin-bottom: 16px; }
+.card { background: var(--bg-card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.card-title { font-size: 14px; font-weight: 700; margin-bottom: 2px; }
+.card-sub { font-size: 11px; color: var(--muted); margin-bottom: 16px; }
+
+.tbl { width: 100%; border-collapse: collapse; font-size: 12px; }
+.tbl thead th { text-align: left; padding: 8px 12px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); border-bottom: 1px solid var(--border); white-space: nowrap; cursor: pointer; user-select: none; }
+.tbl thead th.r { text-align: right; }
+.tbl thead th:hover { color: var(--text); }
+.tbl tbody td { padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.03); vertical-align: middle; }
+.tbl tbody td.r { text-align: right; }
+.tbl tbody tr:hover td { background: rgba(255,255,255,.015); }
+.tbl-wrap { overflow-x: auto; max-height: 520px; overflow-y: auto; }
+
+.pill { display: inline-block; padding: 2px 7px; border-radius: 99px; font-size: 10px; font-weight: 700; white-space: nowrap; }
+.pill-green  { background: rgba(16,185,129,.15); color: #10b981; }
+.pill-amber  { background: rgba(245,158,11,.15); color: #f59e0b; }
+.pill-red    { background: rgba(244,63,94,.15); color: #f43f5e; }
+.pill-blue   { background: rgba(59,130,246,.15); color: #60a5fa; }
+.pill-purple { background: rgba(124,58,237,.15); color: #a78bfa; }
+.pill-teal   { background: rgba(20,184,166,.15); color: #5eead4; }
+.pill-muted  { background: rgba(100,116,139,.15); color: #94a3b8; }
+
+.icp-score { font-weight: 800; font-size: 13px; }
+.icp-bar { display: inline-block; width: 48px; height: 5px; background: rgba(255,255,255,.08); border-radius: 99px; vertical-align: middle; margin-left: 6px; overflow: hidden; }
+.icp-bar-fill { height: 100%; border-radius: 99px; }
+
+.search-input { background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 7px 12px; font-size: 12px; color: var(--text); width: 220px; }
+.search-input:focus { outline: none; border-color: var(--accent-light); }
+
+.status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 4px; }
+.dot-live { background: var(--green); box-shadow: 0 0 6px var(--green); }
+.dot-cached { background: var(--amber); }
+.dot-error { background: var(--red); }
+
+.play-banner { background: rgba(20,184,166,.08); border: 1px solid rgba(20,184,166,.25); border-radius: 10px; padding: 14px 18px; margin-bottom: 16px; font-size: 12px; line-height: 1.6; color: #99f6e4; }
+.play-banner strong { color: #5eead4; }
+.empty-state { text-align: center; padding: 36px 20px; color: var(--muted); font-size: 12px; line-height: 1.7; }
+.setup-box { background: var(--bg-card2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-top: 12px; text-align: left; font-size: 11px; }
+.setup-box code { display: block; margin-top: 6px; padding: 8px; background: #0c0c16; border-radius: 4px; font-size: 10px; color: #a78bfa; white-space: pre-wrap; word-break: break-all; }
+
+.footer { text-align: center; font-size: 11px; color: var(--muted); padding: 20px 0 32px; }
+
+@media (max-width: 1100px) {
+  .kpi-row { grid-template-columns: repeat(3, 1fr); }
+  .grid-2, .grid-32 { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-brand">
+    <div class="logo">ICP</div>
+    <div>
+      <div class="header-title">Accounts ICP Dashboard</div>
+      <div class="header-sub" id="headerSub">Territory · Firmographics · Activity · Perfect Fit by Sales Play</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <a href="sales_rep_dashboard.html" class="nav-link">AE View</a>
+    <a href="sales_dashboard.html" class="nav-link">← Full Dashboard</a>
+    <span class="data-badge" id="dataBadge"><span class="status-dot dot-cached"></span>Cached data</span>
+    <button class="btn" id="refreshBtn">↻ Refresh from Sheets</button>
+  </div>
+</header>
+
+<div class="slicer-bar" style="top:63px;">
+  <span class="slicer-label">Sales Play</span>
+  <button class="slicer-btn play-active" data-play="new_logo" onclick="setPlay('new_logo')">New Logo</button>
+  <button class="slicer-btn" data-play="expansion" onclick="setPlay('expansion')">Expansion</button>
+  <button class="slicer-btn" data-play="all" onclick="setPlay('all')">All Accounts</button>
+  <span class="slicer-hint">ICP scoring rules change per play</span>
+</div>
+
+<div class="slicer-bar" id="repSlicerBar" style="top:107px;">
+  <span class="slicer-label">AE</span>
+  <button class="slicer-btn active" onclick="setRep(null)">All</button>
+  <button class="slicer-btn" data-rep="Carlos" onclick="setRep('Carlos')">Carlos</button>
+  <button class="slicer-btn" data-rep="Travis" onclick="setRep('Travis')">Travis</button>
+  <button class="slicer-btn" data-rep="Hainsley" onclick="setRep('Hainsley')">Hainsley</button>
+  <button class="slicer-btn" data-rep="Arye" onclick="setRep('Arye')">Arye</button>
+  <button class="slicer-btn" data-rep="Nageye" onclick="setRep('Nageye')">Nageye</button>
+</div>
+
+<div class="slicer-bar" style="top:151px;">
+  <span class="slicer-label">ICP Tier</span>
+  <button class="slicer-btn active" data-tier="all" onclick="setTier('all')">All</button>
+  <button class="slicer-btn" data-tier="perfect" onclick="setTier('perfect')">Perfect Fit</button>
+  <button class="slicer-btn" data-tier="strong" onclick="setTier('strong')">Strong</button>
+  <button class="slicer-btn" data-tier="moderate" onclick="setTier('moderate')">Moderate</button>
+  <button class="slicer-btn" data-tier="low" onclick="setTier('low')">Low Fit</button>
+  <span class="slicer-label" style="margin-left:16px;">Activity</span>
+  <button class="slicer-btn active" data-act="all" onclick="setActivity('all')">Any</button>
+  <button class="slicer-btn" data-act="active" onclick="setActivity('active')">Has Activity</button>
+  <button class="slicer-btn" data-act="pipeline" onclick="setActivity('pipeline')">Open Pipeline</button>
+  <button class="slicer-btn" data-act="cold" onclick="setActivity('cold')">No Activity 90d+</button>
+</div>
+
+<main>
+  <div class="play-banner" id="playBanner"></div>
+
+  <div class="section-label">Portfolio Overview</div>
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="section-label">ICP &amp; Territory Insights</div>
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-title">ICP Fit by AE</div>
+      <div class="card-sub">Perfect + Strong fit accounts per rep</div>
+      <div style="height:260px;position:relative;"><canvas id="repIcpChart"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Segment Mix — Top Fits</div>
+      <div class="card-sub">Perfect fit accounts by company segment</div>
+      <div style="height:260px;position:relative;"><canvas id="segmentChart"></canvas></div>
+    </div>
+  </div>
+
+  <div class="section-label">Perfect Fit Targets</div>
+  <div class="card" style="margin-bottom:16px;">
+    <div class="card-title">Top Accounts for This Play</div>
+    <div class="card-sub" id="topFitSub">Highest ICP scores in your book — prioritize outreach here</div>
+    <div class="tbl-wrap">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>Account</th>
+            <th>AE</th>
+            <th class="r">ICP</th>
+            <th>Tier</th>
+            <th>Territory</th>
+            <th>Segment</th>
+            <th>Industry</th>
+            <th class="r">Employees</th>
+            <th>Activity</th>
+            <th class="r">Open Pipe</th>
+          </tr>
+        </thead>
+        <tbody id="topFitTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section-label">Full Account Book</div>
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <div class="card-title">All Accounts — Territory &amp; Firmographics</div>
+        <div class="card-sub" id="fullTableSub">Filter by AE, play, and ICP tier</div>
+      </div>
+      <input type="search" class="search-input" id="searchInput" placeholder="Search account name…" />
+    </div>
+    <div class="tbl-wrap">
+      <table class="tbl" id="accountsTable">
+        <thead>
+          <tr>
+            <th data-sort="name">Account</th>
+            <th data-sort="ownerName">AE</th>
+            <th data-sort="icpScore" class="r">ICP Score</th>
+            <th data-sort="icpTier">Tier</th>
+            <th data-sort="type">Type</th>
+            <th data-sort="territory">Territory</th>
+            <th data-sort="country">Geo</th>
+            <th data-sort="segment">Segment</th>
+            <th data-sort="industry">Industry</th>
+            <th data-sort="employees" class="r">Employees</th>
+            <th data-sort="revenue" class="r">Revenue</th>
+            <th data-sort="lastActivity">Last Activity</th>
+            <th data-sort="openOppCount" class="r">Open Opps</th>
+            <th data-sort="openOppARR" class="r">Open ARR</th>
+            <th>Signals</th>
+          </tr>
+        </thead>
+        <tbody id="accountsTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</main>
+
+<div class="footer">Cerby Accounts ICP Dashboard · Re-deploy Apps Script after backend updates</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  document.getElementById('refreshBtn').addEventListener('click', refreshFromSheets);
+  document.getElementById('searchInput').addEventListener('input', renderAll);
+  document.querySelectorAll('#accountsTable thead th[data-sort]').forEach(th => {
+    th.addEventListener('click', () => {
+      const key = th.getAttribute('data-sort');
+      if (sortKey === key) sortDir = sortDir === 1 ? -1 : 1;
+      else { sortKey = key; sortDir = -1; }
+      renderAll();
+    });
+  });
+  updatePlayBanner();
+  renderAll();
+});
+
+const SCRIPT_URL = 'https://script.google.com/a/macros/cerby.com/s/AKfycbw9TgnAp9IKgk9zkzZtYN2ArI_r7ZDH4HbG234TgKxZBKltWg3zPNseajAnaVTYhah8/exec';
+const SALES_REPS = ['Carlos', 'Travis', 'Hainsley', 'Arye', 'Nageye'];
+
+const SALES_PLAYS = {
+  new_logo: {
+    label: 'New Logo',
+    description: 'Prospect and lead accounts that match Cerby’s ideal buyer profile — enterprise/mid-market segments, target industries, and sufficient firmographic scale. Prioritize accounts with recent sales activity or open pipeline.',
+    accountFilter: a => !a.isCustomer,
+    weights: { segment: 30, industry: 25, employees: 20, revenue: 10, activity: 15 },
+    targetSegments: ['enterprise', 'mid-market', 'mid market', 'commercial', 'strategic'],
+    targetIndustries: ['technology', 'software', 'financial', 'banking', 'insurance', 'healthcare', 'media', 'retail', 'manufacturing', 'professional services'],
+    minEmployees: 200,
+    idealEmployees: 1000,
+  },
+  expansion: {
+    label: 'Expansion',
+    description: 'Existing customers with expansion potential — strong health, Statisfy signals, and room to grow ARR. Accounts with open expansion opportunities or high expansion potential score highest.',
+    accountFilter: a => a.isCustomer,
+    weights: { expansion: 35, health: 25, segment: 15, activity: 15, usage: 10 },
+    expansionValues: ['high', 'very high', 'medium'],
+    healthValues: ['green', 'healthy', 'good'],
+  },
+  all: {
+    label: 'All Accounts',
+    description: 'Combined view across new logo and expansion plays. Scoring blends firmographic fit with engagement signals.',
+    accountFilter: () => true,
+    weights: { segment: 25, industry: 20, employees: 15, activity: 25, pipeline: 15 },
+    targetSegments: ['enterprise', 'mid-market', 'mid market', 'commercial', 'strategic'],
+    targetIndustries: ['technology', 'software', 'financial', 'banking', 'insurance', 'healthcare'],
+    minEmployees: 100,
+    idealEmployees: 500,
+  },
+};
+
+let selectedPlay = 'new_logo';
+let selectedRep = null;
+let selectedTier = 'all';
+let selectedActivity = 'all';
+let searchQuery = '';
+let sortKey = 'icpScore';
+let sortDir = -1;
+const charts = {};
+const repKeyMap = {};
+
+let D = {
+  icpAccounts: { accounts: [], byRep: {}, meta: {} },
+  oppMetrics: { reps: [] },
+};
+
+const fmt = {
+  usd: v => {
+    const n = Number(v) || 0;
+    if (n >= 1e6) return '$' + (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return '$' + Math.round(n / 1e3) + 'K';
+    return n > 0 ? '$' + Math.round(n) : '—';
+  },
+  num: v => {
+    const n = Number(v) || 0;
+    if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M';
+    if (n >= 1e3) return Math.round(n / 1e3) + 'K';
+    return n > 0 ? String(Math.round(n)) : '—';
+  },
+  date: s => {
+    if (!s) return '—';
+    const p = s.split('-');
+    if (p.length < 3) return s;
+    const mn = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    return (mn[parseInt(p[1],10)-1] || p[1]) + ' ' + parseInt(p[2],10) + ', ' + p[0];
+  },
+};
+
+function repFirstMatch(sfName, target) {
+  if (!sfName || !target) return false;
+  const a = sfName.toLowerCase();
+  const b = target.toLowerCase();
+  if (a === b) return true;
+  return a.split(' ')[0] === b.split(' ')[0];
+}
+
+function resolveRepKey(shortName) {
+  if (!shortName) return null;
+  if (repKeyMap[shortName]) return repKeyMap[shortName];
+  const sfReps = (D.oppMetrics && D.oppMetrics.reps) || Object.keys(D.icpAccounts.byRep || {});
+  const match = sfReps.find(r => r.toLowerCase().split(' ')[0] === shortName.toLowerCase());
+  if (match) { repKeyMap[shortName] = match; return match; }
+  return shortName;
+}
+
+function setPlay(play) {
+  selectedPlay = play;
+  document.querySelectorAll('[data-play]').forEach(b => {
+    b.classList.toggle('play-active', b.getAttribute('data-play') === play);
+    b.classList.toggle('active', false);
+  });
+  updatePlayBanner();
+  renderAll();
+}
+
+function setRep(rep) {
+  selectedRep = rep ? resolveRepKey(rep) : null;
+  document.querySelectorAll('#repSlicerBar .slicer-btn').forEach(b => {
+    const r = b.getAttribute('data-rep');
+    b.classList.toggle('active', r ? r === rep : !rep);
+  });
+  renderAll();
+}
+
+function setTier(tier) {
+  selectedTier = tier;
+  document.querySelectorAll('[data-tier]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-tier') === tier);
+  });
+  renderAll();
+}
+
+function setActivity(act) {
+  selectedActivity = act;
+  document.querySelectorAll('[data-act]').forEach(b => {
+    b.classList.toggle('active', b.getAttribute('data-act') === act);
+  });
+  renderAll();
+}
+
+function updatePlayBanner() {
+  const p = SALES_PLAYS[selectedPlay];
+  document.getElementById('playBanner').innerHTML =
+    `<strong>${p.label} play:</strong> ${p.description}`;
+}
+
+function daysSince(iso) {
+  if (!iso) return 9999;
+  const d = new Date(iso);
+  if (isNaN(d)) return 9999;
+  return Math.round((Date.now() - d) / 86400000);
+}
+
+function matchList(val, list) {
+  const v = (val || '').toLowerCase();
+  if (!v) return false;
+  return list.some(t => v.includes(t));
+}
+
+function scoreAccount(a, playKey) {
+  const play = SALES_PLAYS[playKey];
+  const w = play.weights;
+  let score = 0;
+  const reasons = [];
+
+  if (playKey === 'expansion') {
+    const exp = (a.expansion || '').toLowerCase();
+    if (matchList(exp, play.expansionValues)) { score += w.expansion; reasons.push('Expansion potential'); }
+    else if (exp) { score += w.expansion * 0.4; }
+    const h = (a.health || '').toLowerCase();
+    if (matchList(h, play.healthValues)) { score += w.health; reasons.push('Healthy account'); }
+    else if (h && !h.includes('red')) { score += w.health * 0.5; }
+    if (matchList(a.segment, play.targetSegments || [])) { score += w.segment; reasons.push('Target segment'); }
+  } else {
+    if (matchList(a.segment, play.targetSegments)) { score += w.segment; reasons.push('Target segment'); }
+    else if (a.segment) { score += w.segment * 0.35; }
+    if (matchList(a.industry, play.targetIndustries)) { score += w.industry; reasons.push('Target industry'); }
+    else if (a.industry) { score += w.industry * 0.3; }
+    const emp = a.employees || 0;
+    if (emp >= (play.idealEmployees || 1000)) { score += w.employees; reasons.push('Ideal size'); }
+    else if (emp >= (play.minEmployees || 200)) { score += w.employees * 0.65; reasons.push('Meets size threshold'); }
+    else if (emp > 0) { score += w.employees * 0.25; }
+    const rev = a.revenue || 0;
+    if (rev >= 50e6) { score += w.revenue; }
+    else if (rev >= 10e6) { score += w.revenue * 0.6; }
+  }
+
+  const actScore = w.activity || 0;
+  const days = daysSince(a.lastActivity);
+  if (a.openOppCount > 0) { score += actScore; reasons.push('Open pipeline'); }
+  else if (days <= 30) { score += actScore * 0.85; reasons.push('Recent activity'); }
+  else if (days <= 90 || a.taskCount90d > 0) { score += actScore * 0.5; }
+  else if (days > 180) { score -= 5; }
+
+  if (playKey === 'all' && a.openOppARR > 0) score += (w.pipeline || 0);
+
+  score = Math.max(0, Math.min(100, Math.round(score)));
+  let tier = 'low';
+  if (score >= 75) tier = 'perfect';
+  else if (score >= 58) tier = 'strong';
+  else if (score >= 40) tier = 'moderate';
+
+  return { icpScore: score, icpTier: tier, icpReasons: reasons };
+}
+
+function enrichAccounts() {
+  const play = SALES_PLAYS[selectedPlay];
+  const raw = D.icpAccounts.accounts || [];
+  return raw
+    .filter(play.accountFilter)
+    .map(a => ({ ...a, ...scoreAccount(a, selectedPlay) }));
+}
+
+function getFilteredAccounts() {
+  let rows = enrichAccounts();
+  if (selectedRep) rows = rows.filter(a => repFirstMatch(a.ownerName, selectedRep));
+  if (selectedTier !== 'all') rows = rows.filter(a => a.icpTier === selectedTier);
+  if (selectedActivity === 'active') {
+    rows = rows.filter(a => a.openOppCount > 0 || a.taskCount90d > 0 || daysSince(a.lastActivity) <= 90);
+  } else if (selectedActivity === 'pipeline') {
+    rows = rows.filter(a => a.openOppCount > 0);
+  } else if (selectedActivity === 'cold') {
+    rows = rows.filter(a => daysSince(a.lastActivity) > 90 && a.openOppCount === 0);
+  }
+  const q = (document.getElementById('searchInput').value || '').trim().toLowerCase();
+  if (q) rows = rows.filter(a => (a.name || '').toLowerCase().includes(q));
+
+  rows.sort((a, b) => {
+    let av = a[sortKey], bv = b[sortKey];
+    if (sortKey === 'icpScore' || sortKey === 'employees' || sortKey === 'revenue' || sortKey === 'openOppCount' || sortKey === 'openOppARR') {
+      av = Number(av) || 0; bv = Number(bv) || 0;
+    } else {
+      av = String(av || '').toLowerCase();
+      bv = String(bv || '').toLowerCase();
+    }
+    if (av < bv) return -sortDir;
+    if (av > bv) return sortDir;
+    return 0;
+  });
+  return rows;
+}
+
+function tierPill(tier) {
+  const map = {
+    perfect: 'pill-teal',
+    strong: 'pill-green',
+    moderate: 'pill-amber',
+    low: 'pill-muted',
+  };
+  const labels = { perfect: 'Perfect Fit', strong: 'Strong', moderate: 'Moderate', low: 'Low Fit' };
+  return `<span class="pill ${map[tier] || 'pill-muted'}">${labels[tier] || tier}</span>`;
+}
+
+function icpScoreCell(score, tier) {
+  const colors = { perfect: '#14b8a6', strong: '#10b981', moderate: '#f59e0b', low: '#64748b' };
+  const c = colors[tier] || '#64748b';
+  return `<span class="icp-score" style="color:${c}">${score}</span>` +
+    `<span class="icp-bar"><span class="icp-bar-fill" style="width:${score}%;background:${c}"></span></span>`;
+}
+
+function activityCell(a) {
+  const parts = [];
+  if (a.openOppCount > 0) parts.push(`<span class="pill pill-blue">${a.openOppCount} opp${a.openOppCount>1?'s':''}</span>`);
+  if (a.taskCount90d > 0) parts.push(`<span class="pill pill-purple">${a.taskCount90d} tasks</span>`);
+  const days = daysSince(a.lastActivity);
+  if (days <= 30) parts.push('<span class="pill pill-green">Active</span>');
+  else if (days <= 90) parts.push('<span class="pill pill-amber">Warm</span>');
+  else if (days < 9999) parts.push('<span class="pill pill-muted">Cold</span>');
+  return parts.length ? parts.join(' ') : '<span class="pill pill-muted">No data</span>';
+}
+
+function geoCell(a) {
+  const parts = [a.state, a.country].filter(Boolean);
+  return parts.length ? parts.join(', ') : (a.territory || '—');
+}
+
+function renderKpis(rows) {
+  const perfect = rows.filter(r => r.icpTier === 'perfect').length;
+  const strong = rows.filter(r => r.icpTier === 'strong').length;
+  const withAct = rows.filter(r => r.openOppCount > 0 || daysSince(r.lastActivity) <= 90).length;
+  const avgScore = rows.length ? Math.round(rows.reduce((s,r) => s + r.icpScore, 0) / rows.length) : 0;
+  const cold = rows.filter(r => daysSince(r.lastActivity) > 90 && !r.openOppCount).length;
+
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi"><div class="kpi-lbl">Accounts in Play</div><div class="kpi-val c-teal">${rows.length}</div><div class="kpi-sub">${SALES_PLAYS[selectedPlay].label}</div></div>
+    <div class="kpi"><div class="kpi-lbl">Perfect Fit</div><div class="kpi-val c-green">${perfect}</div><div class="kpi-sub">ICP score ≥ 75</div></div>
+    <div class="kpi"><div class="kpi-lbl">Strong Fit</div><div class="kpi-val c-blue">${strong}</div><div class="kpi-sub">Score 58–74</div></div>
+    <div class="kpi"><div class="kpi-lbl">With Activity</div><div class="kpi-val c-purple">${withAct}</div><div class="kpi-sub">Pipeline or touch ≤90d</div></div>
+    <div class="kpi"><div class="kpi-lbl">Avg ICP Score</div><div class="kpi-val c-amber">${avgScore}</div><div class="kpi-sub">Across filtered book</div></div>
+    <div class="kpi"><div class="kpi-lbl">Cold Accounts</div><div class="kpi-val c-red">${cold}</div><div class="kpi-sub">No activity 90d+</div></div>
+  `;
+}
+
+function renderRepChart(rows) {
+  const byRep = {};
+  SALES_REPS.forEach(s => {
+    const key = resolveRepKey(s) || s;
+    byRep[key] = { perfect: 0, strong: 0, label: s };
+  });
+  rows.forEach(a => {
+    const k = Object.keys(byRep).find(r => repFirstMatch(a.ownerName, r)) || a.ownerName;
+    if (!byRep[k]) byRep[k] = { perfect: 0, strong: 0, label: a.ownerName.split(' ')[0] };
+    if (a.icpTier === 'perfect') byRep[k].perfect++;
+    if (a.icpTier === 'strong') byRep[k].strong++;
+  });
+  const entries = Object.values(byRep).filter(e => e.perfect + e.strong > 0 || rows.some(r => repFirstMatch(r.ownerName, e.label)));
+  const labels = entries.map(e => e.label);
+  const perfect = entries.map(e => e.perfect);
+  const strong = entries.map(e => e.strong);
+
+  if (charts.repIcp) charts.repIcp.destroy();
+  charts.repIcp = new Chart(document.getElementById('repIcpChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Perfect Fit', data: perfect, backgroundColor: 'rgba(20,184,166,.7)', borderRadius: 4 },
+        { label: 'Strong Fit', data: strong, backgroundColor: 'rgba(16,185,129,.45)', borderRadius: 4 },
+      ],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { labels: { color: '#94a3b8', boxWidth: 12 } } },
+      scales: {
+        x: { stacked: true, ticks: { color: '#94a3b8' }, grid: { display: false } },
+        y: { stacked: true, ticks: { color: '#94a3b8', stepSize: 1 }, grid: { color: 'rgba(255,255,255,.04)' } },
+      },
+    },
+  });
+}
+
+function renderSegmentChart(rows) {
+  const top = rows.filter(r => r.icpTier === 'perfect' || r.icpTier === 'strong');
+  const segMap = {};
+  top.forEach(a => {
+    const s = a.segment || 'Unknown';
+    segMap[s] = (segMap[s] || 0) + 1;
+  });
+  const sorted = Object.entries(segMap).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  if (charts.segment) charts.segment.destroy();
+  if (!sorted.length) {
+    charts.segment = null;
+    return;
+  }
+  charts.segment = new Chart(document.getElementById('segmentChart'), {
+    type: 'doughnut',
+    data: {
+      labels: sorted.map(([s]) => s),
+      datasets: [{ data: sorted.map(([,n]) => n), backgroundColor: ['#14b8a6','#7c3aed','#3b82f6','#10b981','#f59e0b','#f43f5e','#64748b','#a78bfa'] }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'right', labels: { color: '#94a3b8', boxWidth: 10, font: { size: 11 } } } },
+    },
+  });
+}
+
+function renderTopFits(rows) {
+  const top = rows.filter(r => r.icpTier === 'perfect' || r.icpTier === 'strong')
+    .sort((a,b) => b.icpScore - a.icpScore)
+    .slice(0, 15);
+  const tbody = document.getElementById('topFitTbody');
+  if (!top.length) {
+    tbody.innerHTML = `<tr><td colspan="10" class="empty-state">No perfect/strong fit accounts for current filters. Try refreshing data or switching sales play.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = top.map(a => `
+    <tr>
+      <td><strong>${esc(a.name)}</strong><div style="font-size:10px;color:var(--muted)">${esc(a.type)}</div></td>
+      <td>${esc((a.ownerName||'').split(' ')[0])}</td>
+      <td class="r">${icpScoreCell(a.icpScore, a.icpTier)}</td>
+      <td>${tierPill(a.icpTier)}</td>
+      <td>${esc(a.territory || '—')}</td>
+      <td>${esc(a.segment || '—')}</td>
+      <td>${esc(a.industry || '—')}</td>
+      <td class="r">${fmt.num(a.employees)}</td>
+      <td>${activityCell(a)}</td>
+      <td class="r">${a.openOppCount ? fmt.usd(a.openOppARR) : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderFullTable(rows) {
+  const tbody = document.getElementById('accountsTbody');
+  const meta = D.icpAccounts.meta || {};
+  document.getElementById('fullTableSub').textContent =
+    `${rows.length} accounts · Fields synced: ${(meta.fieldsFound || []).join(', ') || 'segment, industry, owner'}` +
+    (meta.hasTaskData ? ' · Task/Event activity' : ' · Opp-based activity only');
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="15">
+      <div class="empty-state">
+        <div>No accounts loaded</div>
+        <div class="setup-box">
+          <strong>Coefficient SOQL — add to Account import:</strong>
+          <code>SELECT Id, Name, Type, Owner.Name, Company_Segment__c, Industry,
+  BillingCountry, BillingState, NumberOfEmployees, AnnualRevenue,
+  Territory__c, LastActivityDate, ARR__c, Expansion_Potential__c,
+  Account_Health__c FROM Account WHERE Owner.Name != null</code>
+          <strong style="display:block;margin-top:10px;">Optional Task tab:</strong>
+          <code>SELECT Account.Name, ActivityDate FROM Task WHERE ActivityDate = LAST_N_DAYS:90</code>
+        </div>
+      </div>
+    </td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows.map(a => `
+    <tr>
+      <td><strong>${esc(a.name)}</strong></td>
+      <td>${esc((a.ownerName||'').split(' ')[0])}</td>
+      <td class="r">${icpScoreCell(a.icpScore, a.icpTier)}</td>
+      <td>${tierPill(a.icpTier)}</td>
+      <td>${esc(a.type || '—')}</td>
+      <td>${esc(a.territory || '—')}</td>
+      <td>${esc(geoCell(a))}</td>
+      <td>${esc(a.segment || '—')}</td>
+      <td>${esc(a.industry || '—')}</td>
+      <td class="r">${fmt.num(a.employees)}</td>
+      <td class="r">${fmt.usd(a.revenue)}</td>
+      <td>${fmt.date(a.lastActivity)}</td>
+      <td class="r">${a.openOppCount || '—'}</td>
+      <td class="r">${a.openOppARR ? fmt.usd(a.openOppARR) : '—'}</td>
+      <td>${activityCell(a)}</td>
+    </tr>
+  `).join('');
+}
+
+function esc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+function renderAll() {
+  const rows = getFilteredAccounts();
+  renderKpis(rows);
+  renderRepChart(rows);
+  renderSegmentChart(rows);
+  renderTopFits(rows);
+  renderFullTable(rows);
+}
+
+function applyData(payload) {
+  if (payload.oppMetrics) D.oppMetrics = payload.oppMetrics;
+  if (payload.icpAccounts) D.icpAccounts = payload.icpAccounts;
+  else if (payload.icpAccounts === null) D.icpAccounts = { accounts: [], byRep: {}, meta: {} };
+
+  (D.oppMetrics.reps || []).forEach(r => {
+    const first = r.split(' ')[0];
+    if (SALES_REPS.some(s => s.toLowerCase() === first.toLowerCase())) repKeyMap[first] = r;
+  });
+
+  const badge = document.getElementById('dataBadge');
+  const ts = payload.lastUpdated ? new Date(payload.lastUpdated).toLocaleString() : 'now';
+  badge.innerHTML = `<span class="status-dot dot-live"></span>Live · ${ts}`;
+
+  if (payload.icpAccounts && payload.icpAccounts._error) {
+    badge.innerHTML = `<span class="status-dot dot-error"></span>ICP data error`;
+  }
+
+  renderAll();
+}
+
+function refreshFromSheets() {
+  const btn = document.getElementById('refreshBtn');
+  btn.disabled = true;
+  btn.textContent = '↻ Loading…';
+  const cbName = '__icpCb_' + Date.now();
+  window[cbName] = function(data) {
+    delete window[cbName];
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh from Sheets';
+    applyData(data || {});
+  };
+  const tag = document.createElement('script');
+  tag.src = SCRIPT_URL + '?callback=' + cbName;
+  tag.onerror = function() {
+    btn.disabled = false;
+    btn.textContent = '↻ Refresh from Sheets';
+    document.getElementById('dataBadge').innerHTML = '<span class="status-dot dot-error"></span>Load failed';
+  };
+  document.body.appendChild(tag);
+}
+</script>
+</body>
+</html>

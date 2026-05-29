@@ -30,9 +30,12 @@ function doGet(e) {
 
   // All data is calculated from the Opportunity, Account, and Product tabs in
   // the Coefficient spreadsheet.  No hardcoded fallback numbers.
+  const oppMetrics = safe(() => getOppMetrics(ss));
+
   const data = {
-    oppMetrics  : safe(() => getOppMetrics(ss)),
+    oppMetrics,
     accounts    : safe(() => getAccountData(ss)),
+    icpAccounts : safe(() => getIcpAccountData(ss, oppMetrics)),
     products    : safe(() => getProductData(ss)),
     quotas      : safe(() => getQuotaData(ss)),
     lastUpdated : new Date().toISOString(),
@@ -520,6 +523,238 @@ function getAccountData(ss) {
     activeCount    : customers.length,
     renewalCalendar,
   };
+}
+
+// ── ICP / territory accounts (all owned accounts + firmographics + activity) ─
+function getIcpAccountData(ss, oppMetrics) {
+  const extSs = openCoeffSs_();
+  const sh = (extSs && (extSs.getSheetByName('Account') ||
+                        extSs.getSheetByName('Accounts') ||
+                        extSs.getSheetByName('account') ||
+                        extSs.getSheetByName('accounts'))) ||
+             ss.getSheetByName('Account') ||
+             ss.getSheetByName('accounts');
+  if (!sh) return { accounts: [], byRep: {}, meta: { fieldsFound: [] } };
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return { accounts: [], byRep: {}, meta: { fieldsFound: [] } };
+
+  const r1val = String(sh.getRange(1,1,1,1).getValue()).toLowerCase();
+  const headerRow = (r1val.includes('salesforce') || r1val.includes('admin') || r1val === '') ? 2 : 1;
+
+  const headers = sh.getRange(headerRow, 1, 1, lastCol).getValues()[0]
+                    .map(h => String(h).trim().toLowerCase());
+
+  const col = (...names) => {
+    for (const name of names) {
+      const ln = name.toLowerCase();
+      const exact = headers.indexOf(ln);
+      if (exact >= 0) return exact;
+      const partial = headers.findIndex(h => h.includes(ln));
+      if (partial >= 0) return partial;
+    }
+    return -1;
+  };
+
+  const C = {
+    id           : col('id'),
+    name         : col('name'),
+    type         : col('type'),
+    status       : col('account_status__c', 'account status', 'customer status', 'status'),
+    arr          : col('arr__c', 'arr'),
+    segment      : col('company_segment__c', 'company segment', 'segment'),
+    industry     : col('industry'),
+    ownerName    : col('owner.name', 'owner_name', 'owner name', 'account owner'),
+    territory    : col('territory__c', 'territory', 'territory2.name', 'sales territory'),
+    billingCountry: col('billingcountry', 'billing country', 'country'),
+    billingState : col('billingstate', 'billing state', 'state'),
+    employees    : col('numberofemployees', 'number of employees', 'employees'),
+    revenue      : col('annualrevenue', 'annual revenue', 'revenue'),
+    website      : col('website'),
+    lastActivity : col('lastactivitydate', 'last activity date', 'last activity'),
+    createdDate  : col('createddate', 'created date'),
+    expansion    : col('expansion_potential__c', 'expansion potential'),
+    health       : col('account_health__c', 'account health', 'health'),
+  };
+
+  const fieldsFound = [];
+  if (C.territory >= 0) fieldsFound.push('territory');
+  if (C.employees >= 0) fieldsFound.push('employees');
+  if (C.revenue >= 0) fieldsFound.push('revenue');
+  if (C.lastActivity >= 0) fieldsFound.push('lastActivity');
+
+  const activityByAccount = buildAccountActivityFromOpps_(oppMetrics);
+  const taskActivity = getTaskActivityData_(ss);
+
+  const dataStart = headerRow + 1;
+  const numRows   = lastRow - headerRow;
+  if (numRows <= 0) return { accounts: [], byRep: {}, meta: { fieldsFound } };
+
+  const data = sh.getRange(dataStart, 1, numRows, lastCol).getValues();
+  const accounts = [];
+  const EXCLUDE_TYPES = ['former customer'];
+
+  for (const row of data) {
+    const name = C.name >= 0 ? clean(row[C.name]) : '';
+    if (!name) continue;
+
+    const type = C.type >= 0 ? clean(row[C.type]) : '';
+    if (EXCLUDE_TYPES.indexOf(type.toLowerCase()) >= 0) continue;
+
+    const ownerName = C.ownerName >= 0 ? clean(row[C.ownerName]) : '';
+    if (!ownerName) continue;
+
+    const arrVal = C.arr >= 0 ? num(row[C.arr]) : 0;
+    const id = C.id >= 0 ? clean(row[C.id]) : name;
+
+    const oppAct = activityByAccount[name] || activityByAccount[id] || {};
+    const taskAct = taskActivity[name] || taskActivity[id] || {};
+    const lastActDate = pickLatestIso_(
+      toIsoDate_(C.lastActivity >= 0 ? row[C.lastActivity] : null),
+      oppAct.lastTouch,
+      taskAct.lastTouch
+    );
+
+    accounts.push({
+      id,
+      name,
+      type,
+      status      : C.status >= 0 ? clean(row[C.status]) : '',
+      arr         : arrVal,
+      segment     : C.segment >= 0 ? clean(row[C.segment]) : '',
+      industry    : C.industry >= 0 ? clean(row[C.industry]) : '',
+      ownerName,
+      territory   : C.territory >= 0 ? clean(row[C.territory]) : '',
+      country     : C.billingCountry >= 0 ? clean(row[C.billingCountry]) : '',
+      state       : C.billingState >= 0 ? clean(row[C.billingState]) : '',
+      employees   : C.employees >= 0 ? num(row[C.employees]) : 0,
+      revenue     : C.revenue >= 0 ? num(row[C.revenue]) : 0,
+      website     : C.website >= 0 ? clean(row[C.website]) : '',
+      expansion   : C.expansion >= 0 ? clean(row[C.expansion]) : '',
+      health      : C.health >= 0 ? clean(row[C.health]) : '',
+      lastActivity: lastActDate,
+      openOppCount: oppAct.openCount || 0,
+      openOppARR  : oppAct.openARR || 0,
+      wonOppCount : oppAct.wonCount || 0,
+      taskCount90d: taskAct.count90d || 0,
+      isCustomer  : type.toLowerCase() === 'customer' && arrVal > 0,
+    });
+  }
+
+  const byRep = {};
+  for (const a of accounts) {
+    if (!byRep[a.ownerName]) byRep[a.ownerName] = { count: 0, openPipe: 0 };
+    byRep[a.ownerName].count++;
+    byRep[a.ownerName].openPipe += a.openOppARR;
+  }
+
+  return {
+    accounts,
+    byRep,
+    meta: {
+      fieldsFound,
+      totalAccounts: accounts.length,
+      hasTaskData: Object.keys(taskActivity).length > 0,
+    },
+  };
+}
+
+function buildAccountActivityFromOpps_(oppMetrics) {
+  const map = {};
+  if (!oppMetrics || !oppMetrics.rawOpps) return map;
+
+  for (const o of oppMetrics.rawOpps) {
+    const acct = clean(o.account);
+    if (!acct) continue;
+    if (!map[acct]) {
+      map[acct] = { openCount: 0, openARR: 0, wonCount: 0, lastTouch: '' };
+    }
+    const m = map[acct];
+    if (o.isOpen) { m.openCount++; m.openARR += num(o.arr); }
+    if (o.isWon) m.wonCount++;
+    const touch = o.closeDate || '';
+    if (touch && touch > m.lastTouch) m.lastTouch = touch;
+  }
+  return map;
+}
+
+function getTaskActivityData_(ss) {
+  const extSs = openCoeffSs_();
+  const sh = (extSs && (
+    extSs.getSheetByName('Task') || extSs.getSheetByName('Tasks') ||
+    extSs.getSheetByName('Event') || extSs.getSheetByName('Events') ||
+    extSs.getSheetByName('Activity') || extSs.getSheetByName('Activities')
+  )) || ss.getSheetByName('Task') || ss.getSheetByName('Event');
+  if (!sh) return {};
+
+  const lastRow = sh.getLastRow();
+  const lastCol = sh.getLastColumn();
+  if (lastRow < 2) return {};
+
+  const r1val = String(sh.getRange(1,1,1,1).getValue()).toLowerCase();
+  const headerRow = (r1val.includes('salesforce') || r1val.includes('admin') || r1val === '') ? 2 : 1;
+  const headers = sh.getRange(headerRow, 1, 1, lastCol).getValues()[0]
+                    .map(h => String(h).trim().toLowerCase());
+
+  const col = (...names) => {
+    for (const name of names) {
+      const ln = name.toLowerCase();
+      const exact = headers.indexOf(ln);
+      if (exact >= 0) return exact;
+      const partial = headers.findIndex(h => h.includes(ln));
+      if (partial >= 0) return partial;
+    }
+    return -1;
+  };
+
+  const C = {
+    account : col('account.name', 'account name', 'accountname', 'account'),
+    date    : col('activitydate', 'activity date', 'date', 'createddate'),
+    status  : col('status', 'isclosed'),
+  };
+  if (C.account < 0) return {};
+
+  const dataStart = headerRow + 1;
+  const numRows = lastRow - headerRow;
+  if (numRows <= 0) return {};
+
+  const data = sh.getRange(dataStart, 1, numRows, lastCol).getValues();
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 90);
+  const map = {};
+
+  for (const row of data) {
+    const acct = clean(row[C.account]);
+    if (!acct) continue;
+    const d = toIsoDate_(C.date >= 0 ? row[C.date] : null);
+    if (!map[acct]) map[acct] = { count90d: 0, lastTouch: '' };
+    const actDate = d ? new Date(d) : null;
+    if (actDate && !isNaN(actDate) && actDate >= cutoff) map[acct].count90d++;
+    if (d && d > map[acct].lastTouch) map[acct].lastTouch = d;
+  }
+  return map;
+}
+
+function toIsoDate_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return v.getFullYear() + '-' +
+           String(v.getMonth()+1).padStart(2,'0') + '-' +
+           String(v.getDate()).padStart(2,'0');
+  }
+  if (typeof v === 'string' && v.trim()) {
+    const d = new Date(v);
+    if (!isNaN(d.getTime())) return toIsoDate_(d);
+  }
+  return '';
+}
+
+function pickLatestIso_(...dates) {
+  let best = '';
+  for (const d of dates) {
+    if (d && d > best) best = d;
+  }
+  return best;
 }
 
 // ── Quota data — reads a "Quota" tab with rep names + per-quarter amounts ──
