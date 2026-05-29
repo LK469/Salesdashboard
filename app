@@ -589,8 +589,9 @@ function getIcpAccountData(ss, oppMetrics) {
   const lastCol = sh.getLastColumn();
   if (lastRow < 2) return { accounts: [], byRep: {}, meta: { fieldsFound: [] } };
 
-  const r1val = String(sh.getRange(1,1,1,1).getValue()).toLowerCase();
-  const headerRow = (r1val.includes('salesforce') || r1val.includes('admin') || r1val === '') ? 2 : 1;
+  const r1val = String(sh.getRange(1,1,1,1).getValue()).toLowerCase().trim();
+  const headerRow = (r1val === 'name') ? 1 :
+    ((r1val.includes('salesforce') || r1val.includes('admin') || r1val === '') ? 2 : 1);
 
   const headers = sh.getRange(headerRow, 1, 1, lastCol).getValues()[0]
                     .map(h => String(h).trim().toLowerCase());
@@ -607,31 +608,46 @@ function getIcpAccountData(ss, oppMetrics) {
   };
 
   const C = {
-    id           : col('id'),
-    name         : col('name'),
-    type         : col('type'),
-    status       : col('account_status__c', 'account status', 'customer status', 'status'),
-    arr          : col('arr__c', 'arr'),
-    segment      : col('company_segment__c', 'company segment', 'segment'),
-    industry     : col('industry'),
-    ownerName    : col('owner.name', 'owner_name', 'owner name', 'account owner'),
-    territory    : col('territory__c', 'territory', 'territory2.name', 'sales territory'),
-    billingCountry: col('billingcountry', 'billing country', 'country'),
-    billingState : col('billingstate', 'billing state', 'state'),
-    employees    : col('numberofemployees', 'number of employees', 'employees'),
-    revenue      : col('annualrevenue', 'annual revenue', 'revenue'),
-    website      : col('website'),
-    lastActivity : col('lastactivitydate', 'last activity date', 'last activity'),
-    createdDate  : col('createddate', 'created date'),
-    expansion    : col('expansion_potential__c', 'expansion potential'),
-    health       : col('account_health__c', 'account health', 'health'),
+    id              : col('id'),
+    name            : col('name'),
+    website         : col('website'),
+    city            : col('billingcity', 'billing city'),
+    state           : col('billingstate', 'billing state'),
+    industry        : col('industry'),
+    employees       : col('numberofemployees', 'number of employees'),
+    revenueBand     : col('annualrevenue_band__c', 'annual revenue_band', 'annualrevenue band'),
+    type            : col('type'),
+    yearStarted     : col('yearstarted', 'year started'),
+    ownerName       : col('owner.name', 'owner_name', 'owner name', 'account owner'),
+    segment         : col('company_segment__c', 'company segment', 'segment'),
+    useCase         : col('cerby_use_case__c', 'cerby use case', 'use case'),
+    product         : col('cerby_product__c', 'cerby product'),
+    ownershipType   : col('company_ownership_type__c', 'company ownership type', 'ownership type'),
+    employeeBand    : col('employee_band__c', 'employee band'),
+    isPrimaryLoc    : col('is_primary_location__c', 'is primary location'),
+    enrichedName    : col('enriched_company_name__c', 'enriched company name'),
+    cerbyIcpScore   : col('cerby_icp_score__c', 'cerby icp score'),
+    cerbyIcpRationale: col('cerby_icp_rationale__c', 'cerby icp rationale'),
+    cerbyIcpNotes   : col('cerby_icp_notes__c', 'cerby icp notes'),
+    lastEnriched    : col('last_enriched_date__c', 'last enriched date'),
+    enrichmentSource: col('enrichment_source__c', 'enrichment source'),
+    lastActivity    : col('lastactivitydate', 'last activity date', 'last activity'),
+    status          : col('account_status__c', 'account status'),
+    arr             : col('arr__c', 'arr'),
+    billingCountry  : col('billingcountry', 'billing country', 'country'),
+    territory       : col('territory__c', 'territory', 'territory2.name'),
+    revenue         : col('annualrevenue', 'annual revenue'),
+    expansion       : col('expansion_potential__c', 'expansion potential'),
+    health          : col('account_health__c', 'account health', 'health'),
   };
 
   const fieldsFound = [];
-  if (C.territory >= 0) fieldsFound.push('territory');
-  if (C.employees >= 0) fieldsFound.push('employees');
-  if (C.revenue >= 0) fieldsFound.push('revenue');
-  if (C.lastActivity >= 0) fieldsFound.push('lastActivity');
+  if (C.cerbyIcpScore >= 0) fieldsFound.push('Cerby_ICP_Score__c');
+  if (C.segment >= 0) fieldsFound.push('Company_Segment__c');
+  if (C.useCase >= 0) fieldsFound.push('Cerby_Use_Case__c');
+  if (C.employeeBand >= 0) fieldsFound.push('Employee_Band__c');
+  if (C.revenueBand >= 0) fieldsFound.push('AnnualRevenue_Band__c');
+  if (C.lastActivity >= 0) fieldsFound.push('LastActivityDate');
 
   const activityByAccount = buildAccountActivityFromOpps_(oppMetrics);
   const taskActivity = getTaskActivityData_(ss);
@@ -656,6 +672,10 @@ function getIcpAccountData(ss, oppMetrics) {
 
     const arrVal = C.arr >= 0 ? num(row[C.arr]) : 0;
     const id = C.id >= 0 ? clean(row[C.id]) : name;
+    const city = C.city >= 0 ? clean(row[C.city]) : '';
+    const state = C.state >= 0 ? clean(row[C.state]) : '';
+    const territoryLabel = C.territory >= 0 ? clean(row[C.territory]) : '';
+    const geoTerritory = territoryLabel || [city, state].filter(Boolean).join(', ');
 
     const oppAct = activityByAccount[name] || activityByAccount[id] || {};
     const taskAct = taskActivity[name] || taskActivity[id] || {};
@@ -674,12 +694,26 @@ function getIcpAccountData(ss, oppMetrics) {
       segment     : C.segment >= 0 ? clean(row[C.segment]) : '',
       industry    : C.industry >= 0 ? clean(row[C.industry]) : '',
       ownerName,
-      territory   : C.territory >= 0 ? clean(row[C.territory]) : '',
-      country     : C.billingCountry >= 0 ? clean(row[C.billingCountry]) : '',
-      state       : C.billingState >= 0 ? clean(row[C.billingState]) : '',
-      employees   : C.employees >= 0 ? num(row[C.employees]) : 0,
-      revenue     : C.revenue >= 0 ? num(row[C.revenue]) : 0,
       website     : C.website >= 0 ? clean(row[C.website]) : '',
+      city,
+      state,
+      country     : C.billingCountry >= 0 ? clean(row[C.billingCountry]) : '',
+      territory   : geoTerritory,
+      employees   : C.employees >= 0 ? num(row[C.employees]) : 0,
+      employeeBand: C.employeeBand >= 0 ? clean(row[C.employeeBand]) : '',
+      revenue     : C.revenue >= 0 ? num(row[C.revenue]) : 0,
+      revenueBand : C.revenueBand >= 0 ? clean(row[C.revenueBand]) : '',
+      yearStarted : C.yearStarted >= 0 ? clean(row[C.yearStarted]) : '',
+      useCase     : C.useCase >= 0 ? clean(row[C.useCase]) : '',
+      product     : C.product >= 0 ? clean(row[C.product]) : '',
+      ownershipType: C.ownershipType >= 0 ? clean(row[C.ownershipType]) : '',
+      isPrimaryLoc: C.isPrimaryLoc >= 0 ? clean(row[C.isPrimaryLoc]) : '',
+      enrichedName: C.enrichedName >= 0 ? clean(row[C.enrichedName]) : '',
+      cerbyIcpScore: C.cerbyIcpScore >= 0 ? parseIcpScore_(row[C.cerbyIcpScore]) : 0,
+      cerbyIcpRationale: C.cerbyIcpRationale >= 0 ? clean(String(row[C.cerbyIcpRationale] || '')).substring(0, 500) : '',
+      cerbyIcpNotes: C.cerbyIcpNotes >= 0 ? clean(String(row[C.cerbyIcpNotes] || '')).substring(0, 250) : '',
+      lastEnriched: C.lastEnriched >= 0 ? toIsoDate_(row[C.lastEnriched]) : '',
+      enrichmentSource: C.enrichmentSource >= 0 ? clean(row[C.enrichmentSource]) : '',
       expansion   : C.expansion >= 0 ? clean(row[C.expansion]) : '',
       health      : C.health >= 0 ? clean(row[C.health]) : '',
       lastActivity: lastActDate,
@@ -687,7 +721,7 @@ function getIcpAccountData(ss, oppMetrics) {
       openOppARR  : oppAct.openARR || 0,
       wonOppCount : oppAct.wonCount || 0,
       taskCount90d: taskAct.count90d || 0,
-      isCustomer  : type.toLowerCase() === 'customer' && arrVal > 0,
+      isCustomer  : type.toLowerCase() === 'customer',
     });
   }
 
@@ -806,6 +840,12 @@ function pickLatestIso_(...dates) {
     if (d && d > best) best = d;
   }
   return best;
+}
+
+function parseIcpScore_(v) {
+  const n = parseFloat(String(v == null ? '' : v).replace(/[^0-9.]/g, ''));
+  if (isNaN(n)) return 0;
+  return Math.round(Math.min(100, Math.max(0, n)));
 }
 
 // ── Quota data — reads a "Quota" tab with rep names + per-quarter amounts ──

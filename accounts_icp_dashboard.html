@@ -71,6 +71,9 @@ main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
 .pill-purple { background: rgba(124,58,237,.15); color: #a78bfa; }
 .pill-teal   { background: rgba(20,184,166,.15); color: #5eead4; }
 .pill-muted  { background: rgba(100,116,139,.15); color: #94a3b8; }
+.pill-cerby  { background: rgba(167,139,250,.2); color: #c4b5fd; font-size: 9px; margin-left: 4px; vertical-align: middle; }
+.acct-sub    { font-size: 10px; color: var(--muted); margin-top: 2px; max-width: 280px; line-height: 1.35; }
+.acct-rationale { font-size: 10px; color: #a78bfa; margin-top: 3px; max-width: 320px; line-height: 1.4; }
 
 .icp-score { font-weight: 800; font-size: 13px; }
 .icp-bar { display: inline-block; width: 48px; height: 5px; background: rgba(255,255,255,.08); border-radius: 99px; vertical-align: middle; margin-left: 6px; overflow: hidden; }
@@ -180,10 +183,10 @@ main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
             <th>AE</th>
             <th class="r">ICP</th>
             <th>Tier</th>
-            <th>Territory</th>
+            <th>Geo</th>
             <th>Segment</th>
-            <th>Industry</th>
-            <th class="r">Employees</th>
+            <th>Use Case</th>
+            <th>Size</th>
             <th>Activity</th>
             <th class="r">Open Pipe</th>
           </tr>
@@ -211,12 +214,12 @@ main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
             <th data-sort="icpScore" class="r">ICP Score</th>
             <th data-sort="icpTier">Tier</th>
             <th data-sort="type">Type</th>
-            <th data-sort="territory">Territory</th>
-            <th data-sort="country">Geo</th>
+            <th data-sort="territory">Geo</th>
             <th data-sort="segment">Segment</th>
+            <th data-sort="useCase">Use Case</th>
             <th data-sort="industry">Industry</th>
-            <th data-sort="employees" class="r">Employees</th>
-            <th data-sort="revenue" class="r">Revenue</th>
+            <th data-sort="employeeBand">Size</th>
+            <th data-sort="revenueBand">Rev Band</th>
             <th data-sort="lastActivity">Last Activity</th>
             <th data-sort="openOppCount" class="r">Open Opps</th>
             <th data-sort="openOppARR" class="r">Open ARR</th>
@@ -255,7 +258,7 @@ const SALES_REPS = ['Carlos', 'Travis', 'Hainsley', 'Arye', 'Nageye'];
 const SALES_PLAYS = {
   new_logo: {
     label: 'New Logo',
-    description: 'Prospect and lead accounts that match Cerby’s ideal buyer profile — enterprise/mid-market segments, target industries, and sufficient firmographic scale. Prioritize accounts with recent sales activity or open pipeline.',
+    description: 'Prospect and lead accounts that match Cerby’s ideal buyer profile. Uses Cerby_ICP_Score__c from your enriched sheet when present; otherwise scores by segment, industry, employee/revenue bands, and activity.',
     accountFilter: a => !a.isCustomer,
     weights: { segment: 30, industry: 25, employees: 20, revenue: 10, activity: 15 },
     targetSegments: ['enterprise', 'mid-market', 'mid market', 'commercial', 'strategic'],
@@ -391,6 +394,47 @@ function matchList(val, list) {
   return list.some(t => v.includes(t));
 }
 
+function tierFromScore(score) {
+  if (score >= 75) return 'perfect';
+  if (score >= 58) return 'strong';
+  if (score >= 40) return 'moderate';
+  return 'low';
+}
+
+function resolveIcp(a, playKey) {
+  const cerby = Number(a.cerbyIcpScore);
+  if (!isNaN(cerby) && cerby > 0) {
+    const score = Math.round(Math.min(100, cerby));
+    const rationale = (a.cerbyIcpRationale || '').trim();
+    return {
+      icpScore: score,
+      icpTier: tierFromScore(score),
+      icpReasons: rationale ? [rationale] : [],
+      scoreSource: 'cerby',
+    };
+  }
+  const computed = scoreAccount(a, playKey);
+  return { ...computed, scoreSource: 'computed' };
+}
+
+function scoreRevenueBand(band, weight) {
+  const b = (band || '').toLowerCase();
+  if (!b) return 0;
+  if (b.includes('100') || b.includes('1b') || b.includes('500m') || b.includes('250m')) return weight;
+  if (b.includes('50m') || b.includes('25m') || b.includes('10m')) return weight * 0.7;
+  if (b.includes('1m') || b.includes('5m')) return weight * 0.4;
+  return weight * 0.25;
+}
+
+function scoreEmployeeBand(band, weight) {
+  const b = (band || '').toLowerCase();
+  if (!b) return 0;
+  if (b.includes('5000') || b.includes('1000') || b.includes('enterprise')) return weight;
+  if (b.includes('500') || b.includes('200')) return weight * 0.7;
+  if (b.includes('50') || b.includes('100')) return weight * 0.45;
+  return weight * 0.2;
+}
+
 function scoreAccount(a, playKey) {
   const play = SALES_PLAYS[playKey];
   const w = play.weights;
@@ -401,6 +445,7 @@ function scoreAccount(a, playKey) {
     const exp = (a.expansion || '').toLowerCase();
     if (matchList(exp, play.expansionValues)) { score += w.expansion; reasons.push('Expansion potential'); }
     else if (exp) { score += w.expansion * 0.4; }
+    else if (a.useCase) { score += w.expansion * 0.5; reasons.push('Use case identified'); }
     const h = (a.health || '').toLowerCase();
     if (matchList(h, play.healthValues)) { score += w.health; reasons.push('Healthy account'); }
     else if (h && !h.includes('red')) { score += w.health * 0.5; }
@@ -413,10 +458,14 @@ function scoreAccount(a, playKey) {
     const emp = a.employees || 0;
     if (emp >= (play.idealEmployees || 1000)) { score += w.employees; reasons.push('Ideal size'); }
     else if (emp >= (play.minEmployees || 200)) { score += w.employees * 0.65; reasons.push('Meets size threshold'); }
+    else if (a.employeeBand) { score += scoreEmployeeBand(a.employeeBand, w.employees); reasons.push(a.employeeBand); }
     else if (emp > 0) { score += w.employees * 0.25; }
-    const rev = a.revenue || 0;
-    if (rev >= 50e6) { score += w.revenue; }
-    else if (rev >= 10e6) { score += w.revenue * 0.6; }
+    if (a.revenueBand) { score += scoreRevenueBand(a.revenueBand, w.revenue || 10); }
+    else {
+      const rev = a.revenue || 0;
+      if (rev >= 50e6) { score += w.revenue; }
+      else if (rev >= 10e6) { score += w.revenue * 0.6; }
+    }
   }
 
   const actScore = w.activity || 0;
@@ -429,12 +478,7 @@ function scoreAccount(a, playKey) {
   if (playKey === 'all' && a.openOppARR > 0) score += (w.pipeline || 0);
 
   score = Math.max(0, Math.min(100, Math.round(score)));
-  let tier = 'low';
-  if (score >= 75) tier = 'perfect';
-  else if (score >= 58) tier = 'strong';
-  else if (score >= 40) tier = 'moderate';
-
-  return { icpScore: score, icpTier: tier, icpReasons: reasons };
+  return { icpScore: score, icpTier: tierFromScore(score), icpReasons: reasons };
 }
 
 function enrichAccounts() {
@@ -442,7 +486,7 @@ function enrichAccounts() {
   const raw = D.icpAccounts.accounts || [];
   return raw
     .filter(play.accountFilter)
-    .map(a => ({ ...a, ...scoreAccount(a, selectedPlay) }));
+    .map(a => ({ ...a, ...resolveIcp(a, selectedPlay) }));
 }
 
 function getFilteredAccounts() {
@@ -485,11 +529,29 @@ function tierPill(tier) {
   return `<span class="pill ${map[tier] || 'pill-muted'}">${labels[tier] || tier}</span>`;
 }
 
-function icpScoreCell(score, tier) {
+function icpScoreCell(score, tier, source) {
   const colors = { perfect: '#14b8a6', strong: '#10b981', moderate: '#f59e0b', low: '#64748b' };
   const c = colors[tier] || '#64748b';
-  return `<span class="icp-score" style="color:${c}">${score}</span>` +
+  const badge = source === 'cerby' ? '<span class="pill pill-cerby">ENRICHED</span>' : '';
+  return `<span class="icp-score" style="color:${c}">${score}</span>${badge}` +
     `<span class="icp-bar"><span class="icp-bar-fill" style="width:${score}%;background:${c}"></span></span>`;
+}
+
+function accountNameCell(a) {
+  let html = `<strong>${esc(a.name)}</strong>`;
+  if (a.enrichedName && a.enrichedName !== a.name) {
+    html += `<div class="acct-sub">Enriched: ${esc(a.enrichedName)}</div>`;
+  }
+  html += `<div class="acct-sub">${esc(a.type || '')}${a.product ? ' · ' + esc(a.product) : ''}</div>`;
+  if (a.cerbyIcpRationale) {
+    html += `<div class="acct-rationale" title="${esc(a.cerbyIcpRationale)}">${esc(a.cerbyIcpRationale.length > 120 ? a.cerbyIcpRationale.slice(0, 120) + '…' : a.cerbyIcpRationale)}</div>`;
+  }
+  return html;
+}
+
+function sizeCell(a) {
+  if (a.employeeBand) return `${esc(a.employeeBand)}${a.employees ? `<div class="acct-sub">${fmt.num(a.employees)} emp</div>` : ''}`;
+  return fmt.num(a.employees);
 }
 
 function activityCell(a) {
@@ -514,12 +576,13 @@ function renderKpis(rows) {
   const withAct = rows.filter(r => r.openOppCount > 0 || daysSince(r.lastActivity) <= 90).length;
   const avgScore = rows.length ? Math.round(rows.reduce((s,r) => s + r.icpScore, 0) / rows.length) : 0;
   const cold = rows.filter(r => daysSince(r.lastActivity) > 90 && !r.openOppCount).length;
+  const enriched = rows.filter(r => r.scoreSource === 'cerby').length;
 
   document.getElementById('kpiRow').innerHTML = `
     <div class="kpi"><div class="kpi-lbl">Accounts in Play</div><div class="kpi-val c-teal">${rows.length}</div><div class="kpi-sub">${SALES_PLAYS[selectedPlay].label}</div></div>
     <div class="kpi"><div class="kpi-lbl">Perfect Fit</div><div class="kpi-val c-green">${perfect}</div><div class="kpi-sub">ICP score ≥ 75</div></div>
-    <div class="kpi"><div class="kpi-lbl">Strong Fit</div><div class="kpi-val c-blue">${strong}</div><div class="kpi-sub">Score 58–74</div></div>
-    <div class="kpi"><div class="kpi-lbl">With Activity</div><div class="kpi-val c-purple">${withAct}</div><div class="kpi-sub">Pipeline or touch ≤90d</div></div>
+    <div class="kpi"><div class="kpi-lbl">Cerby Enriched</div><div class="kpi-val c-purple">${enriched}</div><div class="kpi-sub">Cerby_ICP_Score__c populated</div></div>
+    <div class="kpi"><div class="kpi-lbl">With Activity</div><div class="kpi-val c-blue">${withAct}</div><div class="kpi-sub">Pipeline or touch ≤90d</div></div>
     <div class="kpi"><div class="kpi-lbl">Avg ICP Score</div><div class="kpi-val c-amber">${avgScore}</div><div class="kpi-sub">Across filtered book</div></div>
     <div class="kpi"><div class="kpi-lbl">Cold Accounts</div><div class="kpi-val c-red">${cold}</div><div class="kpi-sub">No activity 90d+</div></div>
   `;
@@ -600,14 +663,14 @@ function renderTopFits(rows) {
   }
   tbody.innerHTML = top.map(a => `
     <tr>
-      <td><strong>${esc(a.name)}</strong><div style="font-size:10px;color:var(--muted)">${esc(a.type)}</div></td>
+      <td>${accountNameCell(a)}</td>
       <td>${esc((a.ownerName||'').split(' ')[0])}</td>
-      <td class="r">${icpScoreCell(a.icpScore, a.icpTier)}</td>
+      <td class="r">${icpScoreCell(a.icpScore, a.icpTier, a.scoreSource)}</td>
       <td>${tierPill(a.icpTier)}</td>
-      <td>${esc(a.territory || '—')}</td>
+      <td>${esc(a.territory || geoCell(a))}</td>
       <td>${esc(a.segment || '—')}</td>
-      <td>${esc(a.industry || '—')}</td>
-      <td class="r">${fmt.num(a.employees)}</td>
+      <td>${esc(a.useCase || '—')}</td>
+      <td>${sizeCell(a)}</td>
       <td>${activityCell(a)}</td>
       <td class="r">${a.openOppCount ? fmt.usd(a.openOppARR) : '—'}</td>
     </tr>
@@ -631,17 +694,16 @@ function renderFullTable(rows) {
   }
 
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="15">
+    tbody.innerHTML = `<tr><td colspan="16">
       <div class="empty-state">
         <div>No accounts loaded</div>
         <div class="setup-box">
-          <strong>Coefficient SOQL — add to Account import:</strong>
-          <code>SELECT Id, Name, Type, Owner.Name, Company_Segment__c, Industry,
-  BillingCountry, BillingState, NumberOfEmployees, AnnualRevenue,
-  Territory__c, LastActivityDate, ARR__c, Expansion_Potential__c,
-  Account_Health__c FROM Account WHERE Owner.Name != null</code>
-          <strong style="display:block;margin-top:10px;">Optional Task tab:</strong>
-          <code>SELECT Account.Name, ActivityDate FROM Task WHERE ActivityDate = LAST_N_DAYS:90</code>
+          <strong>Coefficient Account import columns (your sheet):</strong>
+          <code>Name, Website, BillingCity, BillingState, Industry, NumberOfEmployees,
+  AnnualRevenue_Band__c, Type, Owner.Name, Company_Segment__c,
+  Cerby_Use_Case__c, Cerby_Product__c, Employee_Band__c,
+  Cerby_ICP_Score__c, Cerby_ICP_Rationale__c, LastActivityDate, …</code>
+          <strong style="display:block;margin-top:10px;">Re-deploy Apps Script after updating dashboard_apps_script.gs</strong>
         </div>
       </div>
     </td></tr>`;
@@ -650,17 +712,17 @@ function renderFullTable(rows) {
 
   tbody.innerHTML = rows.map(a => `
     <tr>
-      <td><strong>${esc(a.name)}</strong></td>
+      <td>${accountNameCell(a)}</td>
       <td>${esc((a.ownerName||'').split(' ')[0])}</td>
-      <td class="r">${icpScoreCell(a.icpScore, a.icpTier)}</td>
+      <td class="r">${icpScoreCell(a.icpScore, a.icpTier, a.scoreSource)}</td>
       <td>${tierPill(a.icpTier)}</td>
       <td>${esc(a.type || '—')}</td>
-      <td>${esc(a.territory || '—')}</td>
-      <td>${esc(geoCell(a))}</td>
+      <td>${esc(a.territory || geoCell(a))}</td>
       <td>${esc(a.segment || '—')}</td>
+      <td>${esc(a.useCase || '—')}</td>
       <td>${esc(a.industry || '—')}</td>
-      <td class="r">${fmt.num(a.employees)}</td>
-      <td class="r">${fmt.usd(a.revenue)}</td>
+      <td>${sizeCell(a)}</td>
+      <td>${esc(a.revenueBand || (a.revenue ? fmt.usd(a.revenue) : '—'))}</td>
       <td>${fmt.date(a.lastActivity)}</td>
       <td class="r">${a.openOppCount || '—'}</td>
       <td class="r">${a.openOppARR ? fmt.usd(a.openOppARR) : '—'}</td>
