@@ -16,8 +16,44 @@
 // ── Spreadsheet with Coefficient custom SQL (Account + Opportunity tabs) ─────
 const COEFF_SS_ID = '19LBBYCRL3ru3OohJbbZPGLTFAD14XBq3ojXXWYClBVI';
 
+// ICP account book — territory + firmographics (Coefficient Account tab)
+// https://docs.google.com/spreadsheets/d/1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA/edit?gid=347903882
+const ICP_SS_ID = '1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA';
+const ICP_ACCOUNT_SHEET_GID = 347903882;
+
 function openCoeffSs_() {
   try { return SpreadsheetApp.openById(COEFF_SS_ID); } catch(e) { return null; }
+}
+
+function openIcpSs_() {
+  try { return SpreadsheetApp.openById(ICP_SS_ID); } catch(e) { return null; }
+}
+
+/** Prefer ICP spreadsheet tab (gid 347903882), then named Account tabs. */
+function findAccountSheet_(spreadsheet, activeSs) {
+  const books = [];
+  if (spreadsheet) books.push(spreadsheet);
+  if (activeSs && activeSs !== spreadsheet) books.push(activeSs);
+
+  for (const book of books) {
+    try {
+      const byGid = book.getSheetById(ICP_ACCOUNT_SHEET_GID);
+      if (byGid && byGid.getLastRow() > 1) return byGid;
+    } catch (e) { /* gid tab missing */ }
+
+    const names = ['Account', 'Accounts', 'account', 'accounts'];
+    for (const n of names) {
+      const sh = book.getSheetByName(n);
+      if (sh && sh.getLastRow() > 1) return sh;
+    }
+
+    const sheets = book.getSheets();
+    for (const sh of sheets) {
+      const nm = sh.getName().toLowerCase();
+      if (nm.includes('account') && sh.getLastRow() > 1) return sh;
+    }
+  }
+  return null;
 }
 
 function doGet(e) {
@@ -527,14 +563,10 @@ function getAccountData(ss) {
 
 // ── ICP / territory accounts (all owned accounts + firmographics + activity) ─
 function getIcpAccountData(ss, oppMetrics) {
-  const extSs = openCoeffSs_();
-  const sh = (extSs && (extSs.getSheetByName('Account') ||
-                        extSs.getSheetByName('Accounts') ||
-                        extSs.getSheetByName('account') ||
-                        extSs.getSheetByName('accounts'))) ||
-             ss.getSheetByName('Account') ||
-             ss.getSheetByName('accounts');
-  if (!sh) return { accounts: [], byRep: {}, meta: { fieldsFound: [] } };
+  const icpSs = openIcpSs_();
+  const coeffSs = openCoeffSs_();
+  const sh = findAccountSheet_(icpSs || coeffSs, ss);
+  if (!sh) return { accounts: [], byRep: {}, meta: { fieldsFound: [], sourceId: ICP_SS_ID } };
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
@@ -656,6 +688,8 @@ function getIcpAccountData(ss, oppMetrics) {
       fieldsFound,
       totalAccounts: accounts.length,
       hasTaskData: Object.keys(taskActivity).length > 0,
+      sourceId: icpSs ? ICP_SS_ID : (coeffSs ? COEFF_SS_ID : ''),
+      sourceSheet: sh.getName(),
     },
   };
 }
@@ -680,7 +714,7 @@ function buildAccountActivityFromOpps_(oppMetrics) {
 }
 
 function getTaskActivityData_(ss) {
-  const extSs = openCoeffSs_();
+  const extSs = openIcpSs_() || openCoeffSs_();
   const sh = (extSs && (
     extSs.getSheetByName('Task') || extSs.getSheetByName('Tasks') ||
     extSs.getSheetByName('Event') || extSs.getSheetByName('Events') ||

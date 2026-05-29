@@ -105,7 +105,7 @@ main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
     <div class="logo">ICP</div>
     <div>
       <div class="header-title">Accounts ICP Dashboard</div>
-      <div class="header-sub" id="headerSub">Territory · Firmographics · Activity · Perfect Fit by Sales Play</div>
+      <div class="header-sub" id="headerSub">Coefficient · <a href="https://docs.google.com/spreadsheets/d/1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA/edit?gid=347903882" target="_blank" style="color:#5eead4;text-decoration:none;">ICP Account Sheet ↗</a></div>
     </div>
   </div>
   <div class="header-right">
@@ -229,7 +229,9 @@ main { padding: 24px 32px; max-width: 1680px; margin: 0 auto; }
   </div>
 </main>
 
-<div class="footer">Cerby Accounts ICP Dashboard · Re-deploy Apps Script after backend updates</div>
+<div class="footer" id="footer">Cerby Accounts ICP Dashboard ·
+  <a href="https://docs.google.com/spreadsheets/d/1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA/edit?gid=347903882" target="_blank" style="color:#5eead4;">Open ICP source sheet ↗</a>
+  · Re-deploy Apps Script after backend updates</div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -615,9 +617,18 @@ function renderTopFits(rows) {
 function renderFullTable(rows) {
   const tbody = document.getElementById('accountsTbody');
   const meta = D.icpAccounts.meta || {};
+  const src = meta.sourceSheet ? ` · tab “${meta.sourceSheet}”` : '';
   document.getElementById('fullTableSub').textContent =
     `${rows.length} accounts · Fields synced: ${(meta.fieldsFound || []).join(', ') || 'segment, industry, owner'}` +
+    src +
     (meta.hasTaskData ? ' · Task/Event activity' : ' · Opp-based activity only');
+  if (meta.sourceId) {
+    document.getElementById('footer').innerHTML =
+      `Cerby Accounts ICP Dashboard · ` +
+      `<a href="https://docs.google.com/spreadsheets/d/${meta.sourceId}/edit?gid=347903882" target="_blank" style="color:#5eead4;">Open source sheet ↗</a>` +
+      (meta.sourceSheet ? ` (${meta.sourceSheet})` : '') +
+      ` · Updated live via Apps Script`;
+  }
 
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="15">
