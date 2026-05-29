@@ -16,9 +16,10 @@
 // ── Spreadsheet with Coefficient custom SQL (Account + Opportunity tabs) ─────
 const COEFF_SS_ID = '19LBBYCRL3ru3OohJbbZPGLTFAD14XBq3ojXXWYClBVI';
 
-// ICP account book — territory + firmographics (Coefficient Account tab)
+// ICP account book — Cerby_SF_Account_Import tab (Coefficient)
 // https://docs.google.com/spreadsheets/d/1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA/edit?gid=347903882
 const ICP_SS_ID = '1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA';
+const ICP_ACCOUNT_SHEET_NAME = 'Cerby_SF_Account_Import';
 const ICP_ACCOUNT_SHEET_GID = 347903882;
 
 function openCoeffSs_() {
@@ -34,21 +35,37 @@ function findAccountSheet_(spreadsheet, activeSs) {
   if (spreadsheet) books.push(spreadsheet);
   if (activeSs && activeSs !== spreadsheet) books.push(activeSs);
 
+  const preferredNames = [
+    ICP_ACCOUNT_SHEET_NAME,
+    'Cerby SF Account Import',
+    'cerby_sf_account_import',
+  ];
+
   for (const book of books) {
+    for (const n of preferredNames) {
+      const sh = book.getSheetByName(n);
+      if (sh && sh.getLastRow() > 1) return sh;
+    }
+    const sheets = book.getSheets();
+    const want = ICP_ACCOUNT_SHEET_NAME.toLowerCase();
+    for (const sh of sheets) {
+      if (sh.getName().toLowerCase() === want && sh.getLastRow() > 1) return sh;
+    }
+
     try {
       const byGid = book.getSheetById(ICP_ACCOUNT_SHEET_GID);
       if (byGid && byGid.getLastRow() > 1) return byGid;
     } catch (e) { /* gid tab missing */ }
 
-    const names = ['Account', 'Accounts', 'account', 'accounts'];
-    for (const n of names) {
+    const fallbackNames = ['Account', 'Accounts', 'account', 'accounts'];
+    for (const n of fallbackNames) {
       const sh = book.getSheetByName(n);
       if (sh && sh.getLastRow() > 1) return sh;
     }
 
-    const sheets = book.getSheets();
     for (const sh of sheets) {
       const nm = sh.getName().toLowerCase();
+      if (nm.includes('account') && nm.includes('import') && sh.getLastRow() > 1) return sh;
       if (nm.includes('account') && sh.getLastRow() > 1) return sh;
     }
   }
