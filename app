@@ -13,21 +13,14 @@
  * Re-deploy after any change to this file.
  */
 
-// ── Spreadsheet with Coefficient custom SQL (Account + Opportunity tabs) ─────
+// ── Single Coefficient workbook — Opportunities, accounts, ICP, quotas, etc. ──
+// https://docs.google.com/spreadsheets/d/19LBBYCRL3ru3OohJbbZPGLTFAD14XBq3ojXXWYClBVI/edit?gid=1045088599
 const COEFF_SS_ID = '19LBBYCRL3ru3OohJbbZPGLTFAD14XBq3ojXXWYClBVI';
-
-// ICP account book — Cerby_SF_Account_Import tab (Coefficient)
-// https://docs.google.com/spreadsheets/d/1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA/edit?gid=347903882
-const ICP_SS_ID = '1ZPHquyxXqvGOYSCz4hejpS7aOKTxBV0UJeIYk1rrxUA';
 const ICP_ACCOUNT_SHEET_NAME = 'Cerby_SF_Account_Import';
-const ICP_ACCOUNT_SHEET_GID = 347903882;
+const ICP_ACCOUNT_SHEET_GID = 1045088599;
 
 function openCoeffSs_() {
   try { return SpreadsheetApp.openById(COEFF_SS_ID); } catch(e) { return null; }
-}
-
-function openIcpSs_() {
-  try { return SpreadsheetApp.openById(ICP_SS_ID); } catch(e) { return null; }
 }
 
 function findAccountSheet_(spreadsheet, activeSs) {
@@ -597,10 +590,9 @@ function getAccountData(ss) {
 
 // ── ICP / territory accounts (all owned accounts + firmographics + activity) ─
 function getIcpAccountData(ss, oppMetrics) {
-  const icpSs = openIcpSs_();
   const coeffSs = openCoeffSs_();
-  const sh = findAccountSheet_(icpSs || coeffSs, ss);
-  if (!sh) return { accounts: [], byRep: {}, meta: { fieldsFound: [], sourceId: ICP_SS_ID } };
+  const sh = findAccountSheet_(coeffSs, ss);
+  if (!sh) return { accounts: [], byRep: {}, meta: { fieldsFound: [], sourceId: COEFF_SS_ID } };
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
@@ -756,7 +748,7 @@ function getIcpAccountData(ss, oppMetrics) {
       fieldsFound,
       totalAccounts: accounts.length,
       hasTaskData: Object.keys(taskActivity).length > 0,
-      sourceId: icpSs ? ICP_SS_ID : (coeffSs ? COEFF_SS_ID : ''),
+      sourceId: COEFF_SS_ID,
       sourceSheet: sh.getName(),
     },
   };
@@ -782,7 +774,7 @@ function buildAccountActivityFromOpps_(oppMetrics) {
 }
 
 function getTaskActivityData_(ss) {
-  const extSs = openIcpSs_() || openCoeffSs_();
+  const extSs = openCoeffSs_();
   const sh = (extSs && (
     extSs.getSheetByName('Task') || extSs.getSheetByName('Tasks') ||
     extSs.getSheetByName('Event') || extSs.getSheetByName('Events') ||
