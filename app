@@ -9,6 +9,8 @@
  *     • Execute as: Me
  *     • Who has access: Anyone (within Cerby org)
  *  5. Copy the Web app URL into SCRIPT_URL in sales_dashboard.html
+ *  6. For ICP dashboard: add IcpDashboard.html file in Apps Script, then open:
+ *     YOUR_WEB_APP_URL?view=icp
  *
  * Re-deploy after any change to this file.
  */
@@ -21,6 +23,16 @@ function openCoeffSs_() {
 }
 
 function doGet(e) {
+  const params = (e && e.parameter) || {};
+
+  // Serve ICP dashboard UI from Apps Script (recommended — avoids CORS/auth issues)
+  if (params.view === 'icp') {
+    return HtmlService.createHtmlOutputFromFile('IcpDashboard')
+      .setTitle('Cerby Accounts ICP Dashboard')
+      .addMetaTag('viewport', 'width=device-width, initial-scale=1')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
+
   const ss = SpreadsheetApp.getActiveSpreadsheet();
 
   // Wrap each function so one failure doesn't crash the whole response
@@ -54,6 +66,18 @@ function doGet(e) {
   return ContentService
     .createTextOutput(json)
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// Called by IcpDashboard.html via google.script.run (no JSONP / CORS needed)
+function getIcpDashboardData() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const oppMetrics = getOppMetrics(ss);
+  return {
+    oppMetrics  : oppMetrics,
+    icpAccounts : getIcpAccountData(ss, oppMetrics),
+    salesPlays  : getSalesPlayConfig(ss),
+    lastUpdated : new Date().toISOString(),
+  };
 }
 
 // ── Opportunity metrics (pipeline, funnel, velocity, closed won) ───────────
