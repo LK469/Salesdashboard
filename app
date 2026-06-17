@@ -30,9 +30,12 @@ function doGet(e) {
 
   // All data is calculated from the Opportunity, Account, and Product tabs in
   // the Coefficient spreadsheet.  No hardcoded fallback numbers.
+  const oppMetrics = safe(() => getOppMetrics(ss));
   const data = {
-    oppMetrics  : safe(() => getOppMetrics(ss)),
+    oppMetrics,
     accounts    : safe(() => getAccountData(ss)),
+    icpAccounts : safe(() => getIcpAccountData(ss, oppMetrics && !oppMetrics._error ? oppMetrics : null)),
+    salesPlays  : safe(() => getSalesPlayConfig(ss)),
     products    : safe(() => getProductData(ss)),
     quotas      : safe(() => getQuotaData(ss)),
     lastUpdated : new Date().toISOString(),
