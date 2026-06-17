@@ -564,23 +564,32 @@ function buildAccountTable() {
   const list = getFilteredAccounts();
 
   if (!(D.icpAccounts.accounts||[]).length) {
+    const diag = buildEmptyDiagnostic_(D.icpAccounts.summary);
+    const types = D.icpAccounts.summary && D.icpAccounts.summary.typeCounts
+      ? Object.entries(D.icpAccounts.summary.typeCounts).map(([k,v]) => `<li>${k}: <strong>${v}</strong></li>`).join('')
+      : '';
     el.innerHTML = `<div class="empty-state"><div class="empty-icon">📋</div>
-      No ICP account data loaded.<br><br>
-      <strong>Setup required:</strong> Extend your Coefficient Account SOQL to include prospects:<br>
+      <strong>No accounts matched ICP filters</strong><br>
+      <span style="font-size:11px;">${diag}</span><br><br>
+      ${types ? `<strong>Account types in your sheet:</strong><ul style="text-align:left;display:inline-block;margin-top:8px;">${types}</ul><br>` : ''}
+      <strong>To get prospect/target accounts</strong>, extend Coefficient Account SOQL:<br>
       <code style="font-size:10px;background:#1e1e32;padding:6px 12px;border-radius:4px;display:inline-block;margin-top:8px;text-align:left;line-height:1.6;">
         SELECT Name, Type, Owner.Name, Company_Segment__c, Industry,<br>
         NumberOfEmployees, AnnualRevenue, BillingCountry, BillingState,<br>
-        Territory__c, LastActivityDate, ICP_Score__c<br>
-        FROM Account WHERE Type IN ('Prospect','Lead','Target Account')
+        Territory__c, LastActivityDate FROM Account<br>
+        WHERE Type IN ('Prospect','Lead','Target Account')
       </code><br>
-      <span style="font-size:11px;margin-top:8px;display:block;">Then redeploy the Apps Script (<code style="background:#1e1e32;padding:1px 4px;border-radius:3px;">app</code> file) and refresh.</span>
+      <span style="font-size:11px;margin-top:8px;display:block;">Redeploy Apps Script after updating <code style="background:#1e1e32;padding:1px 4px;border-radius:3px;">app</code> — latest version falls back to all accounts + pipeline if no prospects exist.</span>
     </div>`;
     return;
   }
 
+  const banner = dataSourceBanner_();
   title.textContent = `ICP Account Rankings (${list.length})`;
   const repLbl = selectedRep ? ` · ${selectedRep}` : '';
-  sub.textContent = `Sorted by ICP score${repLbl} · click filters above to narrow`;
+  sub.textContent = banner
+    ? banner + ' · Sorted by ICP score' + repLbl
+    : `Sorted by ICP score${repLbl} · click filters above to narrow`;
 
   if (!list.length) {
     el.innerHTML = `<div class="empty-state">No accounts match current filters</div>`;
@@ -596,7 +605,7 @@ function buildAccountTable() {
     list.slice(0, 100).map(a => {
       const loc = [a.state, a.country].filter(Boolean).join(', ');
       return `<tr>` +
-        `<td style="font-weight:600;">${a.name}${a.isTarget ? ' <span class="pill pill-amber" style="font-size:9px;">TARGET</span>' : ''}</td>` +
+        `<td style="font-weight:600;">${a.name}${a.isTarget ? ' <span class="pill pill-amber" style="font-size:9px;">TARGET</span>' : ''}${a.isCustomer ? ' <span class="pill pill-muted" style="font-size:9px;">CUSTOMER</span>' : ''}${a.fromPipeline ? ' <span class="pill pill-blue" style="font-size:9px;">PIPELINE</span>' : ''}</td>` +
         `<td>${a.ownerName ? `<span class="rep-tag">${a.ownerName.split(' ')[0]}</span>` : '<span style="color:var(--red);">Unassigned</span>'}</td>` +
         `<td>${a.territory || '—'}${loc ? `<div style="font-size:10px;color:var(--muted);">${loc}</div>` : ''}</td>` +
         `<td>${a.segment ? `<span class="pill pill-purple">${a.segment}</span>` : '—'}</td>` +
@@ -656,7 +665,30 @@ function applyData(data) {
   btn.textContent = '↻ Refresh from Sheets';
   document.getElementById('headerSub').textContent = acctCount
     ? `${acctCount} ICP accounts · ${playCount} sales plays · Updated ${t}`
-    : `Connected · 0 prospect accounts in sheet · Updated ${t}`;
+    : buildEmptyDiagnostic_(D.icpAccounts.summary) + ` · Updated ${t}`;
+}
+
+function buildEmptyDiagnostic_(summary) {
+  if (!summary) return 'Connected · 0 accounts found';
+  const types = summary.typeCounts ? Object.entries(summary.typeCounts).map(([k,v]) => k + ': ' + v).join(', ') : '';
+  const src = summary.dataSource || 'unknown';
+  let msg = `Connected · 0 ICP accounts (${summary.sheetRows || 0} sheet rows`;
+  if (types) msg += ` · types: ${types}`;
+  msg += ` · source tried: ${src})`;
+  if (summary.oppAccountCount > 0) msg += ` · ${summary.oppAccountCount} accounts in pipeline`;
+  return msg;
+}
+
+function dataSourceBanner_() {
+  const s = D.icpAccounts.summary || {};
+  if (!s.dataSource || s.dataSource === 'prospects') return '';
+  const labels = {
+    all_accounts: 'Showing all accounts (no Prospect types in sheet — mostly Customers)',
+    pipeline: 'Showing accounts from open pipeline only',
+    mixed: 'Prospects + pipeline accounts merged',
+    all_accounts_and_pipeline: 'All sheet accounts + pipeline accounts merged',
+  };
+  return labels[s.dataSource] || '';
 }
 
 function showFetchError(msg) {
