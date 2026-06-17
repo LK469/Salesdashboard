@@ -639,13 +639,20 @@ function rebuildAll() {
 function applyData(data) {
   if (!data) { showFetchError('Empty response from server'); return; }
 
+  if (data._error) {
+    showFetchError(data._error);
+    if (data._meta) showMetaPanel_(data._meta);
+    return;
+  }
+
   if (data.oppMetrics && !data.oppMetrics._error) {
     D.oppMetrics = data.oppMetrics;
   }
   if (data.icpAccounts && !data.icpAccounts._error) {
     D.icpAccounts = data.icpAccounts;
   } else if (data.icpAccounts === undefined) {
-    showFetchError('API missing icpAccounts — redeploy Apps Script with latest app code');
+    showFetchError('API missing icpAccounts — paste latest app code into Code.gs and redeploy');
+    return;
   }
   if (data.salesPlays && !data.salesPlays._error) {
     D.salesPlays = data.salesPlays;
@@ -656,19 +663,60 @@ function applyData(data) {
   buildTerritorySlicer();
   if (selectedRep) selectedRep = resolveRepKey(selectedRep.split(' ')[0]);
   rebuildAll();
+  if (data._meta) showMetaPanel_(data._meta);
 
   const btn = document.getElementById('refreshBtn');
   const badge = document.getElementById('dataBadge');
   const t = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   const acctCount = (D.icpAccounts.accounts || []).length;
   const playCount = (D.salesPlays.plays || []).length;
+  const oppCount = (D.oppMetrics.rawOpps || []).length;
 
   badge.innerHTML = `<span class="status-dot dot-live"></span>Live · ${t}`;
   btn.disabled = false;
   btn.textContent = '↻ Refresh from Sheets';
+
+  if (!acctCount && !oppCount) {
+    document.getElementById('headerSub').textContent =
+      'Connected but 0 rows — check diagnostic panel below';
+    return;
+  }
+
   document.getElementById('headerSub').textContent = acctCount
-    ? `${acctCount} ICP accounts · ${playCount} sales plays · Updated ${t}`
-    : buildEmptyDiagnostic_(D.icpAccounts.summary) + ` · Updated ${t}`;
+    ? `${acctCount} ICP accounts · ${oppCount} opps · ${playCount} plays · ${t}`
+    : buildEmptyDiagnostic_(D.icpAccounts.summary) + ` · ${oppCount} opps · ${t}`;
+}
+
+function showMetaPanel_(meta) {
+  let el = document.getElementById('metaPanel');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'metaPanel';
+    el.className = 'callout';
+    el.style.marginBottom = '16px';
+    document.querySelector('main').insertBefore(el, document.querySelector('main').firstChild);
+  }
+  if (meta.error || meta.coeffOpenError) {
+    el.innerHTML =
+      `<div class="callout-title" style="color:var(--red);">⚠️ Data connection issue</div>` +
+      `<div class="callout-sub">${meta.error || meta.coeffOpenError || 'Unknown error'}</div>` +
+      `<div style="font-size:11px;color:var(--muted);line-height:1.7;margin-top:8px;">` +
+      `<strong>Fix:</strong> Open the Coefficient Google Sheet → Extensions → Apps Script → paste latest <code>app</code> code → Deploy.<br>` +
+      `Sheet ID expected: <code style="background:#1e1e32;padding:2px 6px;border-radius:3px;">${meta.coeffSheetId || 'see app'}</code><br>` +
+      `Test: <a href="${SCRIPT_URL}?view=diag" target="_blank" style="color:var(--accent-light);">open diagnostics</a> (while signed into Cerby Google)` +
+      `</div>`;
+    return;
+  }
+  el.innerHTML =
+    `<div class="callout-title">✓ Connected to spreadsheet</div>` +
+    `<div class="callout-sub" style="font-size:11px;">` +
+    `${meta.spreadsheetName || 'Sheet'} · source: ${meta.spreadsheetSource} · ` +
+    `${meta.oppCount || 0} opportunities · ${meta.accountCount || 0} ICP accounts` +
+    `</div>`;
+  if ((meta.accountCount || 0) === 0 && (meta.oppCount || 0) === 0) {
+    el.innerHTML +=
+      `<div style="font-size:11px;color:var(--amber);margin-top:8px;">Sheet found but no data rows. Check Account and Opportunity tabs exist in the Coefficient sheet.</div>`;
+  }
 }
 
 function buildEmptyDiagnostic_(summary) {

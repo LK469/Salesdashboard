@@ -19,7 +19,72 @@
 const COEFF_SS_ID = '19LBBYCRL3ru3OohJbbZPGLTFAD14XBq3ojXXWYClBVI';
 
 function openCoeffSs_() {
-  try { return SpreadsheetApp.openById(COEFF_SS_ID); } catch(e) { return null; }
+  try { return SpreadsheetApp.openById(COEFF_SS_ID); }
+  catch (e) { openCoeffSs_.lastError = e.message; return null; }
+}
+
+// Prefer Coefficient sheet by ID; fall back to bound sheet only if needed
+function getDataSpreadsheet_() {
+  const ext = openCoeffSs_();
+  if (ext) {
+    return { ss: ext, source: 'coefficient', id: COEFF_SS_ID, name: ext.getName() };
+  }
+  try {
+    const active = SpreadsheetApp.getActiveSpreadsheet();
+    if (active) {
+      return { ss: active, source: 'active', id: active.getId(), name: active.getName() };
+    }
+  } catch (e) { /* standalone script — no bound sheet */ }
+  throw new Error(
+    'Cannot open data spreadsheet. Share sheet ' + COEFF_SS_ID +
+    ' with the script deployer, or create this script via Extensions → Apps Script inside that Google Sheet. ' +
+    (openCoeffSs_.lastError ? 'Error: ' + openCoeffSs_.lastError : '')
+  );
+}
+
+function findSheet_(ss, names) {
+  if (!ss) return null;
+  for (var i = 0; i < names.length; i++) {
+    const sh = ss.getSheetByName(names[i]);
+    if (sh) return sh;
+  }
+  return null;
+}
+
+function getDiagnostics_() {
+  const diag = {
+    coeffSheetId: COEFF_SS_ID,
+    coeffOpenError: openCoeffSs_.lastError || null,
+    timestamp: new Date().toISOString(),
+  };
+  try {
+    const info = getDataSpreadsheet_();
+    diag.spreadsheetSource = info.source;
+    diag.spreadsheetId = info.id;
+    diag.spreadsheetName = info.name;
+    const ss = info.ss;
+    diag.tabs = ss.getSheets().map(function(s) {
+      return { name: s.getName(), rows: s.getLastRow(), cols: s.getLastColumn() };
+    });
+    const oppSh = findSheet_(ss, ['Opportunity','Opportunities','opportunities','Opps','opps']);
+    const acctSh = findSheet_(ss, ['Account','Accounts','account','accounts']);
+    diag.opportunityTab = oppSh ? oppSh.getName() : null;
+    diag.accountTab = acctSh ? acctSh.getName() : null;
+    if (oppSh) {
+      const om = getOppMetrics(ss);
+      diag.oppRowCount = om ? (om.rawOpps || []).length : 0;
+    }
+    if (acctSh) {
+      const icp = getIcpAccountData(ss, getOppMetrics(ss));
+      diag.icpAccountCount = icp ? (icp.accounts || []).length : 0;
+      diag.icpSummary = icp ? icp.summary : null;
+    }
+    diag.ok = true;
+  } catch (e) {
+    diag.ok = false;
+    diag.error = e.message;
+  }
+  return diag;
 }
 
 function doGet(e) {
@@ -33,7 +98,17 @@ function doGet(e) {
       .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
   }
 
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (params.view === 'diag') {
+    return ContentService
+      .createTextOutput(JSON.stringify(getDiagnostics_(), null, 2))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+
+  const info = (function() {
+    try { return getDataSpreadsheet_(); }
+    catch (e) { return { ss: null, source: 'error', id: '', name: '', error: e.message }; }
+  })();
+  const ss = info.ss;
 
   // Wrap each function so one failure doesn't crash the whole response
   function safe(fn) {
@@ -50,6 +125,7 @@ function doGet(e) {
     salesPlays  : safe(() => getSalesPlayConfig(ss)),
     products    : safe(() => getProductData(ss)),
     quotas      : safe(() => getQuotaData(ss)),
+    diagnostics : safe(() => getDiagnostics_()),
     lastUpdated : new Date().toISOString(),
   };
 
@@ -70,13 +146,51 @@ function doGet(e) {
 
 // Called by IcpDashboard.html via google.script.run (no JSONP / CORS needed)
 function getIcpDashboardData() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  const oppMetrics = getOppMetrics(ss);
+  try {
+    const info = getDataSpreadsheet_();
+    const ss = info.ss;
+    const oppMetrics = getOppMetrics(ss) || emptyOppMetrics_();
+    const icpAccounts = getIcpAccountData(ss, oppMetrics) || emptyIcpAccounts_('no_data');
+    const salesPlays = getSalesPlayConfig(ss);
+    return {
+      oppMetrics,
+      icpAccounts,
+      salesPlays,
+      lastUpdated: new Date().toISOString(),
+      _meta: {
+        spreadsheetSource: info.source,
+        spreadsheetId: info.id,
+        spreadsheetName: info.name,
+        oppCount: (oppMetrics.rawOpps || []).length,
+        accountCount: (icpAccounts.accounts || []).length,
+        coeffSheetId: COEFF_SS_ID,
+      },
+    };
+  } catch (err) {
+    return {
+      _error: err.message,
+      oppMetrics: emptyOppMetrics_(),
+      icpAccounts: emptyIcpAccounts_('connection_error'),
+      salesPlays: { plays: getSalesPlayConfig(null).plays, source: 'default' },
+      lastUpdated: new Date().toISOString(),
+      _meta: { error: err.message, coeffSheetId: COEFF_SS_ID, coeffOpenError: openCoeffSs_.lastError || null },
+    };
+  }
+}
+
+function emptyOppMetrics_() {
   return {
-    oppMetrics  : oppMetrics,
-    icpAccounts : getIcpAccountData(ss, oppMetrics),
-    salesPlays  : getSalesPlayConfig(ss),
-    lastUpdated : new Date().toISOString(),
+    pipeByQ: [], wonByQ: [], openByStage: {}, funnel: {},
+    velocity: {}, repBreakdown: {}, reps: [], rawOpps: [],
+    byType: {}, bySegment: {}, byForecast: {},
+  };
+}
+
+function emptyIcpAccounts_(reason) {
+  return {
+    accounts: [], byAe: {}, byTerritory: {}, byTier: {}, territories: [],
+    summary: { total: 0, dataSource: reason, sheetRows: 0, typeCounts: {} },
+    perfectFitNoActivity: [],
   };
 }
 
@@ -698,7 +812,7 @@ function getSalesPlayConfig(ss) {
     extSs.getSheetByName('Sales Plays')  || extSs.getSheetByName('sales play')  ||
     extSs.getSheetByName('ICP Play')     || extSs.getSheetByName('Playbook')
   )) ||
-  ss.getSheetByName('Sales Play') || ss.getSheetByName('SalesPlay');
+  (ss && (ss.getSheetByName('Sales Play') || ss.getSheetByName('SalesPlay')));
 
   const defaults = [
     {
@@ -792,9 +906,8 @@ function getIcpAccountData(ss, oppMetrics) {
                         extSs.getSheetByName('Accounts') ||
                         extSs.getSheetByName('account') ||
                         extSs.getSheetByName('accounts'))) ||
-             ss.getSheetByName('Account') ||
-             ss.getSheetByName('accounts');
-  if (!sh) return null;
+             (ss && (ss.getSheetByName('Account') || ss.getSheetByName('accounts')));
+  if (!sh) return emptyIcpAccounts_('no_account_tab');
 
   const lastRow = sh.getLastRow();
   const lastCol = sh.getLastColumn();
